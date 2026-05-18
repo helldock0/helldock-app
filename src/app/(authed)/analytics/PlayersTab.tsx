@@ -93,8 +93,8 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
   }
 
   return (
-    <div className="bg-surface-2 border border-line-strong/40 rounded-2xl overflow-hidden">
-      <table className="w-full text-sm">
+    <div className="bg-surface-2 border border-line-strong/40 rounded-2xl overflow-x-auto">
+      <table className="w-full text-sm whitespace-nowrap min-w-[1600px]">
         <thead>
           <tr className="border-b border-line text-2xs uppercase tracking-[0.16em] text-muted-2">
             <Th label="Player" k="name" sort={sort} onClick={toggleSort} align="left" />
