@@ -8,6 +8,12 @@ type SaveState =
   | { kind: 'saved' }
   | { kind: 'error'; message: string }
 
+type TestState =
+  | { kind: 'idle' }
+  | { kind: 'sending' }
+  | { kind: 'sent' }
+  | { kind: 'error'; message: string }
+
 export default function SettingsClient({
   teamName,
   initialWebhook,
@@ -17,6 +23,8 @@ export default function SettingsClient({
 }) {
   const [value, setValue] = useState(initialWebhook ?? '')
   const [state, setState] = useState<SaveState>({ kind: 'idle' })
+  const [savedWebhook, setSavedWebhook] = useState<string | null>(initialWebhook)
+  const [testState, setTestState] = useState<TestState>({ kind: 'idle' })
 
   async function save() {
     setState({ kind: 'saving' })
@@ -32,11 +40,36 @@ export default function SettingsClient({
         return
       }
       setState({ kind: 'saved' })
+      setSavedWebhook(body?.discord_webhook_url ?? null)
       setTimeout(() => setState({ kind: 'idle' }), 1800)
     } catch (e) {
       setState({
         kind: 'error',
         message: e instanceof Error ? e.message : 'save failed',
+      })
+    }
+  }
+
+  async function sendTest() {
+    setTestState({ kind: 'sending' })
+    try {
+      const res = await fetch('/api/settings/discord/test', {
+        method: 'POST',
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setTestState({
+          kind: 'error',
+          message: body?.error ?? `HTTP ${res.status}`,
+        })
+        return
+      }
+      setTestState({ kind: 'sent' })
+      setTimeout(() => setTestState({ kind: 'idle' }), 2500)
+    } catch (e) {
+      setTestState({
+        kind: 'error',
+        message: e instanceof Error ? e.message : 'test failed',
       })
     }
   }
@@ -59,6 +92,7 @@ export default function SettingsClient({
         return
       }
       setState({ kind: 'saved' })
+      setSavedWebhook(null)
       setTimeout(() => setState({ kind: 'idle' }), 1800)
     } catch (e) {
       setState({
@@ -101,7 +135,7 @@ export default function SettingsClient({
           className="w-full bg-surface border border-line-strong rounded-md px-3 py-2 text-sm text-fg font-mono placeholder:text-muted-2 focus:outline-none focus:border-gold"
         />
 
-        <div className="mt-4 flex items-center gap-3">
+        <div className="mt-4 flex items-center gap-3 flex-wrap">
           <button
             type="button"
             onClick={save}
@@ -110,7 +144,18 @@ export default function SettingsClient({
           >
             {state.kind === 'saving' ? 'Saving…' : 'Save'}
           </button>
-          {initialWebhook && (
+          {savedWebhook && (
+            <button
+              type="button"
+              onClick={sendTest}
+              disabled={testState.kind === 'sending'}
+              className="px-4 py-2 rounded-md border border-gold/50 bg-gold/10 text-gold font-semibold text-sm hover:bg-gold/20 transition-colors disabled:opacity-50"
+              title="Post a sample embed to the saved webhook"
+            >
+              {testState.kind === 'sending' ? 'Sending…' : '🎯 Send test'}
+            </button>
+          )}
+          {savedWebhook && (
             <button
               type="button"
               onClick={clear}
@@ -125,6 +170,14 @@ export default function SettingsClient({
           )}
           {state.kind === 'error' && (
             <span className="text-2xs text-crimson">✗ {state.message}</span>
+          )}
+          {testState.kind === 'sent' && (
+            <span className="text-2xs text-win-green">
+              ✓ test sent — check Discord
+            </span>
+          )}
+          {testState.kind === 'error' && (
+            <span className="text-2xs text-crimson">✗ {testState.message}</span>
           )}
         </div>
 
