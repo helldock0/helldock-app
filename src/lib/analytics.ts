@@ -922,6 +922,12 @@ export type CoachSummary = {
   // V4 additions
   afkFlag: { name: string; rounds: number } | null   // any player with >2 AFK rounds in last 7d
   ffFlag: { name: string; damage: number } | null    // any player with >100 outgoing FF damage in last 7d
+  // S12 — coach grading rollup
+  grading: {
+    gradedRoundsLast7d: number
+    fourPlusPct: number | null // % of graded rounds in 7d that scored 4 or 5
+    topTags: { tag: string; count: number }[] // up to 3, last 7d
+  }
 }
 
 export function computeCoachSummary(
@@ -1016,7 +1022,8 @@ export function computeCoachSummary(
 
   const thisWeek = matches.filter((m) => isWithinDays(m.match_date, 7)).length
 
-  // AFK + FF flags — scan last-7d match-players for any threshold breach
+  // AFK + FF flags — scan last-7d match-players for any threshold breach.
+  // Same recent-match index also drives the coach grading rollup below.
   const recentMatchIds: Record<string, true> = {}
   for (const m of matches) {
     if (isWithinDays(m.match_date, 7)) recentMatchIds[m.id] = true
@@ -1037,6 +1044,32 @@ export function computeCoachSummary(
     }
   }
 
+  // Coach grading rollup (S12): graded rounds in last 7 days, % rated 4+, top tags
+  let gradedRoundsLast7d = 0
+  let fourPlus = 0
+  const tagCounts: Record<string, number> = {}
+  for (const r of rounds) {
+    if (!recentMatchIds[r.match_id]) continue
+    if (r.coach_grade != null) {
+      gradedRoundsLast7d++
+      if (r.coach_grade >= 4) fourPlus++
+    }
+    if (r.coach_tags && r.coach_tags.length > 0) {
+      for (const t of r.coach_tags) {
+        tagCounts[t] = (tagCounts[t] ?? 0) + 1
+      }
+    }
+  }
+  const topTags = Object.entries(tagCounts)
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3)
+  const grading = {
+    gradedRoundsLast7d,
+    fourPlusPct: pct(fourPlus, gradedRoundsLast7d),
+    topTags,
+  }
+
   return {
     last5: record(head(5)),
     last10: record(head(10)),
@@ -1054,6 +1087,7 @@ export function computeCoachSummary(
     mostLoggedOpp,
     afkFlag,
     ffFlag,
+    grading,
   }
 }
 

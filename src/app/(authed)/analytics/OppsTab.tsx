@@ -258,8 +258,24 @@ export default function OppsTab({
                     className={i !== sorted.length - 1 ? 'border-b border-line' : ''}
                   >
                     <td colSpan={7} className="bg-surface px-6 py-4">
-                      <div className="text-2xs uppercase tracking-[0.16em] text-muted-2 mb-2">
-                        Match history
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <div className="text-2xs uppercase tracking-[0.16em] text-muted-2">
+                          Match history
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Link
+                            href={`/opponents/${encodeURIComponent(o.name)}`}
+                            className="text-2xs uppercase tracking-wider px-2.5 py-1 rounded-md bg-gold/10 border border-gold/40 text-gold hover:bg-gold/20 transition-colors"
+                          >
+                            📋 Dossier
+                          </Link>
+                          <Link
+                            href={`/prep?opp=${encodeURIComponent(o.name)}`}
+                            className="text-2xs uppercase tracking-wider px-2.5 py-1 rounded-md border border-line-strong/60 text-muted hover:border-gold hover:text-gold transition-colors"
+                          >
+                            🧾 Prep
+                          </Link>
+                        </div>
                       </div>
                       <div className="space-y-1">
                         {o.history.map((h) => (

@@ -80,7 +80,7 @@ export default async function AnalyticsPage({
   const [roundsRes, mpRes, oppRes] = await Promise.all([
     supabase
       .from('rounds')
-      .select('match_id, round_num, half, side, round_type, outcome, first_blood, clutch_type, clutch_player, site, plant_time_in_round, defuse_time_in_round, our_ults_used, their_ults_used')
+      .select('match_id, round_num, half, side, round_type, outcome, first_blood, clutch_type, clutch_player, site, plant_time_in_round, defuse_time_in_round, our_ults_used, their_ults_used, coach_grade, coach_tags')
       .in('match_id', matchIds),
     supabase
       .from('match_players')

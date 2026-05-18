@@ -52,6 +52,8 @@ type Round = {
   clutch_player: string | null
   mvp: string | null
   note: string | null
+  coach_grade: number | null
+  coach_tags: string[] | null
 }
 
 type MatchPlayer = {
@@ -379,6 +381,111 @@ function OverviewTab({ match, rounds, editMode, onMatchChange }: {
 const OUTCOME_OPTS: [string, string][] = [['W', 'W'], ['L', 'L']]
 const FB_OPTS: [string, string][] = [['us', 'us'], ['them', 'them']]
 
+export const COACH_TAG_OPTIONS = [
+  'good_comms',
+  'bad_rotate',
+  'good_setup',
+  'force_mistake',
+  'clutch',
+  'setup_failed',
+  'good_util',
+  'bad_economy',
+] as const
+
+function CoachGradeCell({
+  value,
+  editMode,
+  onChange,
+}: {
+  value: number | null
+  editMode: boolean
+  onChange: (v: number | null) => void
+}) {
+  if (!editMode) {
+    if (value == null) return <span className="text-[#6B7280]">—</span>
+    return (
+      <span className="text-gold tnum" title={`${value}/5`}>
+        {'★'.repeat(value)}
+        <span className="text-[#3C3C44]">{'★'.repeat(5 - value)}</span>
+      </span>
+    )
+  }
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => onChange(value === n ? null : n)}
+          className={`text-base leading-none transition-colors ${
+            value != null && n <= value
+              ? 'text-gold hover:text-gold-hover'
+              : 'text-[#3C3C44] hover:text-[#6B7280]'
+          }`}
+          title={`${n}/5${value === n ? ' (click to clear)' : ''}`}
+          aria-label={`Grade ${n} of 5`}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function CoachTagsCell({
+  value,
+  editMode,
+  onChange,
+}: {
+  value: string[]
+  editMode: boolean
+  onChange: (v: string[]) => void
+}) {
+  function toggle(tag: string) {
+    if (value.includes(tag)) onChange(value.filter((t) => t !== tag))
+    else onChange([...value, tag])
+  }
+
+  if (!editMode) {
+    if (value.length === 0)
+      return <span className="text-[#6B7280]">—</span>
+    return (
+      <div className="flex flex-wrap gap-1">
+        {value.map((t) => (
+          <span
+            key={t}
+            className="text-2xs uppercase tracking-wider px-1.5 py-0.5 rounded bg-gold/10 text-gold border border-gold/40"
+          >
+            {t}
+          </span>
+        ))}
+      </div>
+    )
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {COACH_TAG_OPTIONS.map((t) => {
+        const active = value.includes(t)
+        return (
+          <button
+            key={t}
+            type="button"
+            onClick={() => toggle(t)}
+            className={`text-2xs uppercase tracking-wider px-1.5 py-0.5 rounded border transition-colors ${
+              active
+                ? 'bg-gold/15 text-gold border-gold/50'
+                : 'bg-transparent text-[#6B7280] border-[#3C3C44] hover:text-white hover:border-[#6B7280]'
+            }`}
+            title={active ? `Remove ${t}` : `Add ${t}`}
+          >
+            {t}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function RoundsTab({ rounds, editMode, onRoundChange }: {
   rounds: Round[]
   editMode: boolean
@@ -406,7 +513,7 @@ function RoundsTab({ rounds, editMode, onRoundChange }: {
       <table className="w-full text-xs whitespace-nowrap">
         <thead>
           <tr className="border-b border-[#3C3C44] text-[#6B7280] uppercase tracking-wide">
-            {['#', 'Half', 'Side', 'Type', 'Site', 'Our', 'Their', 'Out', 'FB', 'FB Player', 'Planter', 'Defuser', 'Clutch', 'MVP', 'Note'].map(h => (
+            {['#', 'Half', 'Side', 'Type', 'Site', 'Our', 'Their', 'Out', 'FB', 'FB Player', 'Planter', 'Defuser', 'Clutch', 'MVP', 'Note', 'Grade', 'Tags'].map(h => (
               <th key={h} className="text-left px-3 py-2 font-normal">{h}</th>
             ))}
           </tr>
@@ -460,6 +567,20 @@ function RoundsTab({ rounds, editMode, onRoundChange }: {
                 {editMode
                   ? <SI value={r.note} onChange={v => onRoundChange(r.id, 'note', str(v))} />
                   : <span className="text-[#6B7280] truncate block max-w-[128px]">{fmt(r.note)}</span>}
+              </td>
+              <td className="px-3 py-1.5 w-32">
+                <CoachGradeCell
+                  value={r.coach_grade}
+                  editMode={editMode}
+                  onChange={(v) => onRoundChange(r.id, 'coach_grade', v)}
+                />
+              </td>
+              <td className="px-3 py-1.5 min-w-[180px]">
+                <CoachTagsCell
+                  value={r.coach_tags ?? []}
+                  editMode={editMode}
+                  onChange={(v) => onRoundChange(r.id, 'coach_tags', v)}
+                />
               </td>
             </tr>
           ))}
@@ -740,7 +861,17 @@ export default function MatchDetail({
             {localMatch.map_name ?? 'Unknown Map'}
           </h1>
           <p className="text-[#6B7280]">
-            {localMatch.opponent_name ?? 'Unknown Opponent'}
+            {localMatch.opponent_name ? (
+              <Link
+                href={`/opponents/${encodeURIComponent(localMatch.opponent_name)}`}
+                className="hover:text-gold transition-colors"
+                title="Open opponent dossier"
+              >
+                {localMatch.opponent_name}
+              </Link>
+            ) : (
+              'Unknown Opponent'
+            )}
             {localMatch.match_type && <span className="ml-2">· {localMatch.match_type}</span>}
             {localMatch.match_date && <span className="ml-2">· {formatDate(localMatch.match_date)}</span>}
           </p>

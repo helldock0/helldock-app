@@ -122,6 +122,34 @@ export default function CoachSummaryStrip({ summary }: { summary: CoachSummary }
           value={summary.thisWeek === 0 ? '—' : `${summary.thisWeek} scrims`}
           tone={summary.thisWeek > 0 ? 'fg' : 'muted'}
         />
+        {summary.grading.gradedRoundsLast7d > 0 && (
+          <>
+            <Row
+              label="Grade 4★+ (7d)"
+              value={
+                summary.grading.fourPlusPct == null
+                  ? '—'
+                  : `${summary.grading.fourPlusPct}% · n=${summary.grading.gradedRoundsLast7d}`
+              }
+              tone={
+                summary.grading.fourPlusPct != null && summary.grading.fourPlusPct >= 60
+                  ? 'green'
+                  : 'fg'
+              }
+            />
+            {summary.grading.topTags.length > 0 && (
+              <div className="text-2xs text-muted-2 pt-1 leading-snug">
+                tags:{' '}
+                {summary.grading.topTags.map((t) => (
+                  <span key={t.tag} className="text-gold mr-1.5">
+                    {t.tag}
+                    <span className="text-muted-2">×{t.count}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
+        )}
         {(summary.afkFlag || summary.ffFlag) && (
           <div className="pt-2 mt-1 border-t border-crimson/30 space-y-1">
             {summary.afkFlag && (

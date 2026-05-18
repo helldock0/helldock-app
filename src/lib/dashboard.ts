@@ -27,6 +27,9 @@ export type DashRound = {
   // S10 — per-round ult casts (optional)
   our_ults_used?: number | null
   their_ults_used?: number | null
+  // S12 — coach grading (optional)
+  coach_grade?: number | null
+  coach_tags?: string[] | null
 }
 
 export type DashMatchPlayer = {
