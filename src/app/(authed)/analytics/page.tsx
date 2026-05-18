@@ -228,6 +228,8 @@ export default async function AnalyticsPage({
       player_id: mp.player_id,
       puuid: mp.puuid ?? null,
       player: mp.player,
+      acs: mp.acs,
+      adr: (mp as FullMatchPlayer).adr ?? null,
     })
   )
   const impacts = computePlayerImpact(
@@ -236,6 +238,7 @@ export default async function AnalyticsPage({
       match_id: r.match_id,
       round_num: r.round_num,
       outcome: r.outcome,
+      plant_time_in_round: r.plant_time_in_round ?? null,
     })),
     filteredAllKills as unknown as ImpactKillEvent[]
   )

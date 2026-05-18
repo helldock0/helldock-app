@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import type { PlayerStat } from '@/lib/analytics'
 import RatingTrendChart from '@/components/charts/RatingTrendChart'
 
-type SortKey = 'name' | 'games' | 'avgAcs' | 'avgKd' | 'avgPlusMinus' | 'bestMap' | 'delta' | 'fk' | 'fd' | 'plants' | 'defuses' | 'adr' | 'hs' | 'trade' | 'drag' | 'carry'
+type SortKey = 'name' | 'games' | 'avgAcs' | 'avgKd' | 'avgPlusMinus' | 'bestMap' | 'delta' | 'fk' | 'fd' | 'plants' | 'defuses' | 'adr' | 'hs' | 'trade' | 'drag' | 'carry' | 'kst' | 'opduel' | 'rating2' | 'twok'
 type SortDir = 'asc' | 'desc'
 
 const numCell = (n: number | null, suffix = '', decimals = 1) => {
@@ -58,6 +58,14 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
             return p.drag ?? -Infinity
           case 'carry':
             return p.carry ?? -Infinity
+          case 'kst':
+            return p.kstPct ?? -Infinity
+          case 'opduel':
+            return p.opDuelWPct ?? -Infinity
+          case 'rating2':
+            return p.rating2 ?? -Infinity
+          case 'twok':
+            return p.twoKWinPct ?? -Infinity
         }
       }
       const av = get(a)
@@ -106,6 +114,10 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
             <Th label="Trade%" k="trade" sort={sort} onClick={toggleSort} align="right" />
             <Th label="Drag" k="drag" sort={sort} onClick={toggleSort} align="right" />
             <Th label="Carry" k="carry" sort={sort} onClick={toggleSort} align="right" />
+            <Th label="KST%" k="kst" sort={sort} onClick={toggleSort} align="right" />
+            <Th label="OpDuel" k="opduel" sort={sort} onClick={toggleSort} align="right" />
+            <Th label="2K W%" k="twok" sort={sort} onClick={toggleSort} align="right" />
+            <Th label="Rating" k="rating2" sort={sort} onClick={toggleSort} align="right" />
           </tr>
         </thead>
         <tbody>
@@ -275,13 +287,114 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
                       </span>
                     )}
                   </td>
+                  {/* S17 — advanced metrics */}
+                  <td
+                    className="px-4 py-3 text-right tnum"
+                    title={
+                      p.kstPct == null
+                        ? 'No data'
+                        : `Got a kill, survived, or trade-deathed in ${p.kstPct}% of ${p.kstSample} rounds. Assists not counted — Henrik doesn't expose per-round damage.`
+                    }
+                  >
+                    {p.kstPct == null ? (
+                      <span className="text-muted-2">—</span>
+                    ) : (
+                      <span
+                        className={
+                          p.kstPct >= 70
+                            ? 'text-win-green'
+                            : p.kstPct >= 60
+                            ? 'text-gold'
+                            : p.kstPct < 50
+                            ? 'text-crimson'
+                            : 'text-fg'
+                        }
+                      >
+                        {p.kstPct}%
+                      </span>
+                    )}
+                  </td>
+                  <td
+                    className="px-4 py-3 text-right tnum"
+                    title={
+                      p.opDuelWPct == null
+                        ? 'No first-blood data'
+                        : `Won ${p.opDuelWins} of ${p.opDuelWins + p.opDuelLosses} opening duels`
+                    }
+                  >
+                    {p.opDuelWPct == null ? (
+                      <span className="text-muted-2">—</span>
+                    ) : (
+                      <span
+                        className={
+                          p.opDuelWPct >= 60
+                            ? 'text-win-green'
+                            : p.opDuelWPct < 40
+                            ? 'text-crimson'
+                            : 'text-fg'
+                        }
+                      >
+                        {p.opDuelWPct}%
+                      </span>
+                    )}
+                  </td>
+                  <td
+                    className="px-4 py-3 text-right tnum"
+                    title={
+                      p.twoKWinPct == null
+                        ? 'No 2K rounds yet'
+                        : `Won ${Math.round((p.twoKWinPct / 100) * p.twoKSample)} of ${p.twoKSample} rounds where you got exactly 2 kills`
+                    }
+                  >
+                    {p.twoKWinPct == null ? (
+                      <span className="text-muted-2">—</span>
+                    ) : (
+                      <span
+                        className={
+                          p.twoKWinPct >= 75
+                            ? 'text-win-green'
+                            : p.twoKWinPct < 50
+                            ? 'text-crimson'
+                            : 'text-fg'
+                        }
+                      >
+                        {p.twoKWinPct}%
+                      </span>
+                    )}
+                  </td>
+                  <td
+                    className="px-4 py-3 text-right tnum"
+                    title={
+                      p.rating2 == null
+                        ? 'No data'
+                        : `Weighted blend of KPR (${p.rating2KillsPerRound ?? '?'}/rd), survival (${p.rating2SurvivalRate ?? '?'}/rd), and KST (${p.kstPct ?? '?'}%). 1.00 ≈ pro avg.`
+                    }
+                  >
+                    {p.rating2 == null ? (
+                      <span className="text-muted-2">—</span>
+                    ) : (
+                      <span
+                        className={`font-bold ${
+                          p.rating2 >= 1.1
+                            ? 'text-win-green'
+                            : p.rating2 >= 0.95
+                            ? 'text-gold'
+                            : p.rating2 < 0.8
+                            ? 'text-crimson'
+                            : 'text-fg'
+                        }`}
+                      >
+                        {p.rating2.toFixed(2)}
+                      </span>
+                    )}
+                  </td>
                 </tr>
                 {isExpanded && (
                   <tr
                     key={`${p.playerId}-detail`}
                     className={i !== sorted.length - 1 ? 'border-b border-line' : ''}
                   >
-                    <td colSpan={17} className="bg-surface px-6 py-4 space-y-4">
+                    <td colSpan={21} className="bg-surface px-6 py-4 space-y-4">
                       {/* Rating trend chart */}
                       <div>
                         <div className="flex items-baseline justify-between mb-2">
@@ -300,9 +413,62 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
                           Advanced
                         </div>
                         <div className="grid grid-cols-3 gap-2">
-                          <MiniCard label="Avg Rating" value={p.avgRating == null ? '—' : p.avgRating.toFixed(2)} />
+                          <MiniCard label="Old Rating" value={p.avgRating == null ? '—' : p.avgRating.toFixed(2)} />
                           <MiniCard label="Avg Clutches" value={p.avgClutches == null ? '—' : String(p.avgClutches)} />
                           <MiniCard label="Avg Econ" value={p.avgEcon == null ? '—' : String(p.avgEcon)} />
+                        </div>
+                      </div>
+
+                      {/* S17 — Impact + consistency cluster */}
+                      <div>
+                        <div className="text-2xs uppercase tracking-[0.16em] text-muted-2 mb-2">
+                          Impact · consistency
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                          <MiniCard
+                            label="Rating 2.0"
+                            value={p.rating2 == null ? '—' : p.rating2.toFixed(2)}
+                          />
+                          <MiniCard
+                            label="KPR"
+                            value={
+                              p.rating2KillsPerRound == null
+                                ? '—'
+                                : p.rating2KillsPerRound.toFixed(2)
+                            }
+                          />
+                          <MiniCard
+                            label="Survive %"
+                            value={
+                              p.rating2SurvivalRate == null
+                                ? '—'
+                                : `${Math.round(p.rating2SurvivalRate * 100)}%`
+                            }
+                          />
+                          <MiniCard
+                            label="ACS stdev"
+                            value={
+                              p.acsStdev == null
+                                ? '—'
+                                : `${p.acsStdev}${p.acsCv != null ? ` (cv ${p.acsCv}%)` : ''}`
+                            }
+                          />
+                          <MiniCard
+                            label="3K+ W%"
+                            value={
+                              p.threeKPlusWinPct == null
+                                ? '—'
+                                : `${p.threeKPlusWinPct}% (${p.threeKPlusSample})`
+                            }
+                          />
+                          <MiniCard
+                            label="Pre / post plant"
+                            value={
+                              p.prePlantKills + p.postPlantKills === 0
+                                ? '—'
+                                : `${p.prePlantKills} / ${p.postPlantKills}`
+                            }
+                          />
                         </div>
                       </div>
 

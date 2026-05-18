@@ -304,6 +304,24 @@ export type PlayerStat = {
   noKillSample: number
   winPctWithKill: number | null
   winPctWithoutKill: number | null
+  // S17 — advanced player metrics
+  kstPct: number | null
+  kstSample: number
+  opDuelWPct: number | null
+  opDuelWins: number
+  opDuelLosses: number
+  twoKWinPct: number | null
+  twoKSample: number
+  threeKPlusWinPct: number | null
+  threeKPlusSample: number
+  acsStdev: number | null
+  acsCv: number | null
+  acsN: number
+  prePlantKills: number
+  postPlantKills: number
+  rating2: number | null
+  rating2KillsPerRound: number | null
+  rating2SurvivalRate: number | null
 }
 
 export type FullMatchPlayer = DashMatchPlayer & {
@@ -599,6 +617,24 @@ export function computePlayerStats(
       noKillSample: 0,
       winPctWithKill: null,
       winPctWithoutKill: null,
+      // S17 defaults
+      kstPct: null,
+      kstSample: 0,
+      opDuelWPct: null,
+      opDuelWins: 0,
+      opDuelLosses: 0,
+      twoKWinPct: null,
+      twoKSample: 0,
+      threeKPlusWinPct: null,
+      threeKPlusSample: 0,
+      acsStdev: null,
+      acsCv: null,
+      acsN: 0,
+      prePlantKills: 0,
+      postPlantKills: 0,
+      rating2: null,
+      rating2KillsPerRound: null,
+      rating2SurvivalRate: null,
     }
   })
 }
@@ -622,6 +658,23 @@ export function mergePlayerImpact(
       noKillSample: number
       winPctWithKill: number | null
       winPctWithoutKill: number | null
+      kstPct: number | null
+      kstSample: number
+      opDuelWPct: number | null
+      opDuelWins: number
+      opDuelLosses: number
+      twoKWinPct: number | null
+      twoKSample: number
+      threeKPlusWinPct: number | null
+      threeKPlusSample: number
+      acsStdev: number | null
+      acsCv: number | null
+      acsN: number
+      prePlantKills: number
+      postPlantKills: number
+      rating2: number | null
+      rating2KillsPerRound: number | null
+      rating2SurvivalRate: number | null
     }
   >
 ): PlayerStat[] {
@@ -643,6 +696,24 @@ export function mergePlayerImpact(
       noKillSample: im.noKillSample,
       winPctWithKill: im.winPctWithKill,
       winPctWithoutKill: im.winPctWithoutKill,
+      // S17
+      kstPct: im.kstPct,
+      kstSample: im.kstSample,
+      opDuelWPct: im.opDuelWPct,
+      opDuelWins: im.opDuelWins,
+      opDuelLosses: im.opDuelLosses,
+      twoKWinPct: im.twoKWinPct,
+      twoKSample: im.twoKSample,
+      threeKPlusWinPct: im.threeKPlusWinPct,
+      threeKPlusSample: im.threeKPlusSample,
+      acsStdev: im.acsStdev,
+      acsCv: im.acsCv,
+      acsN: im.acsN,
+      prePlantKills: im.prePlantKills,
+      postPlantKills: im.postPlantKills,
+      rating2: im.rating2,
+      rating2KillsPerRound: im.rating2KillsPerRound,
+      rating2SurvivalRate: im.rating2SurvivalRate,
     }
   })
 }
