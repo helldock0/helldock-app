@@ -34,3 +34,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# one-off script outputs / inputs (rehydrate backfill helpers)
+/scripts/_in/
+/scripts/_out/
+
+# local dev logs
+.next-dev.log

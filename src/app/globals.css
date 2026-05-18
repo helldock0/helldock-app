@@ -2,26 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  /* Reset focus outlines to the gold accent globally */
+  :focus-visible {
+    outline: 2px solid rgba(255, 215, 0, 0.75);
+    outline-offset: 2px;
+    border-radius: 6px;
   }
-}
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-}
+  /* Tabular numerals everywhere so columns of numbers don't shift */
+  body {
+    font-feature-settings: 'tnum', 'ss01';
+  }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  /* Number cells / monospace bits */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Honor the user's motion preference */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Custom scrollbar for the dark theme */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2F2F36;
+    border-radius: 8px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3C3C44;
   }
 }
