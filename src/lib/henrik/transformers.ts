@@ -148,13 +148,31 @@ function calcTeamUltsUsed(roundData: RawMatch, ourPuuids: Set<string>): number {
   return total
 }
 
-// Pull (x, y) from either `{x, y}` or `{location: {x, y}}` shapes.
-function readXY(obj: RawMatch | undefined | null): { x: number | null; y: number | null } {
-  if (!obj) return { x: null, y: null }
-  const cand = obj.location ?? obj
-  const x = typeof cand?.x === 'number' ? cand.x : null
-  const y = typeof cand?.y === 'number' ? cand.y : null
-  return { x, y }
+// V4 kill geometry:
+//   top-level `kill.location` is the VICTIM's death location
+//   `kill.player_locations[]` contains every alive player's position at kill time;
+//     find the killer entry by puuid for the killer's location.
+function extractKillCoords(k: RawMatch): {
+  killer_x: number | null
+  killer_y: number | null
+  victim_x: number | null
+  victim_y: number | null
+} {
+  const victimLoc = k?.location
+  const killerPuuid = k?.killer?.puuid
+  let killerLoc: RawMatch | null = null
+  for (const pl of k?.player_locations ?? []) {
+    if (pl?.player?.puuid === killerPuuid) {
+      killerLoc = pl?.location
+      break
+    }
+  }
+  return {
+    victim_x: typeof victimLoc?.x === 'number' ? victimLoc.x : null,
+    victim_y: typeof victimLoc?.y === 'number' ? victimLoc.y : null,
+    killer_x: typeof killerLoc?.x === 'number' ? killerLoc.x : null,
+    killer_y: typeof killerLoc?.y === 'number' ? killerLoc.y : null,
+  }
 }
 
 function readHeadshot(k: RawMatch): boolean | null {
@@ -697,8 +715,7 @@ export function transformMatchToRows(
       const k = sorted[i]
       const killerPuuid: string | null = k?.killer?.puuid ?? null
       const victimPuuid: string | null = k?.victim?.puuid ?? null
-      const killerXY = readXY(k?.killer)
-      const victimXY = readXY(k?.victim?.death_location ?? k?.victim)
+      const coords = extractKillCoords(k)
       killEvents.push({
         round_num: roundNum,
         ts_in_round_ms: typeof k?.time_in_round_in_ms === 'number' ? k.time_in_round_in_ms : null,
@@ -707,10 +724,10 @@ export function transformMatchToRows(
         killer_is_ours: killerPuuid ? ourPuuids.has(killerPuuid) : null,
         weapon_name: k?.weapon?.name ?? k?.weapon?.id ?? null,
         headshot: readHeadshot(k),
-        killer_x: killerXY.x,
-        killer_y: killerXY.y,
-        victim_x: victimXY.x,
-        victim_y: victimXY.y,
+        killer_x: coords.killer_x,
+        killer_y: coords.killer_y,
+        victim_x: coords.victim_x,
+        victim_y: coords.victim_y,
         is_first_blood: i === 0,
       })
     }

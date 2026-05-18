@@ -57,7 +57,7 @@ async function rehydrateAll(matches: MatchInput[]) {
       out.push({ id: m.id, match_id_helldock: m.match_id_helldock, status: 'error', error: xf.error })
       continue
     }
-    process.stderr.write(`OK (${xf.rounds.length} rds, ${xf.ourPlayers.length} ours, ${xf.oppPlayers.length} opps)\n`)
+    process.stderr.write(`OK (${xf.rounds.length} rds, ${xf.ourPlayers.length} ours, ${xf.oppPlayers.length} opps, ${xf.killEvents.length} kills)\n`)
     out.push({
       id: m.id,
       match_id_helldock: m.match_id_helldock,
@@ -66,6 +66,7 @@ async function rehydrateAll(matches: MatchInput[]) {
       rounds: xf.rounds,
       ourPlayers: xf.ourPlayers,
       oppPlayers: xf.oppPlayers,
+      killEvents: xf.killEvents,
     })
   }
   return out

@@ -16,6 +16,7 @@ type RehydrateRow = {
   rounds?: any[]
   ourPlayers?: any[]
   oppPlayers?: any[]
+  killEvents?: any[]
 }
 
 const json: RehydrateRow[] = JSON.parse(readFileSync('scripts/_out/rehydrate.json', 'utf8'))
@@ -40,6 +41,7 @@ const out: string[] = []
 let roundCount = 0
 let mpCount = 0
 let oppCount = 0
+let keCount = 0
 let skipped = 0
 
 for (const m of json) {
@@ -62,7 +64,9 @@ for (const m of json) {
   plant_time_in_round=${sqlNum(r.plant_time_in_round)},
   defuse_time_in_round=${sqlNum(r.defuse_time_in_round)},
   our_econ_spent=${sqlNum(r.our_econ_spent)},
-  their_econ_spent=${sqlNum(r.their_econ_spent)}
+  their_econ_spent=${sqlNum(r.their_econ_spent)},
+  our_ults_used=${sqlNum(r.our_ults_used)},
+  their_ults_used=${sqlNum(r.their_ults_used)}
 WHERE match_id=${sqlStr(matchId)} AND round_num=${sqlNum(r.round_num)};`)
     roundCount++
   }
@@ -103,10 +107,24 @@ WHERE match_id=${sqlStr(matchId)} AND player_id=${sqlStr(playerId)};`)
 WHERE match_id=${sqlStr(matchId)} AND riot_id_full=${sqlStr(op.riot_id_full)};`)
     oppCount++
   }
+
+  // Kill events — wipe existing rows for this match, then bulk-insert.
+  if (m.killEvents && m.killEvents.length > 0) {
+    out.push(`DELETE FROM kill_events WHERE match_id=${sqlStr(matchId)};`)
+    const valuesRows = m.killEvents
+      .map(
+        (k) =>
+          `(${sqlStr(matchId)},${sqlNum(k.round_num)},${sqlNum(k.ts_in_round_ms)},${sqlStr(k.killer_puuid)},${sqlStr(k.victim_puuid)},${sqlBool(k.killer_is_ours)},${sqlStr(k.weapon_name)},${sqlBool(k.headshot)},${sqlNum(k.killer_x)},${sqlNum(k.killer_y)},${sqlNum(k.victim_x)},${sqlNum(k.victim_y)},${sqlBool(k.is_first_blood)})`
+      )
+      .join(',\n  ')
+    out.push(`INSERT INTO kill_events (match_id, round_num, ts_in_round_ms, killer_puuid, victim_puuid, killer_is_ours, weapon_name, headshot, killer_x, killer_y, victim_x, victim_y, is_first_blood) VALUES
+  ${valuesRows};`)
+    keCount += m.killEvents.length
+  }
 }
 
 writeFileSync('scripts/_out/rehydrate.sql', out.join('\n'))
 process.stderr.write(
-  `Generated ${roundCount} round UPDATEs, ${mpCount} match_player UPDATEs, ${oppCount} opp_player UPDATEs (${skipped} skipped)\n`
+  `Generated ${roundCount} round UPDATEs, ${mpCount} match_player UPDATEs, ${oppCount} opp_player UPDATEs, ${keCount} kill_event rows (${skipped} skipped)\n`
 )
 process.stderr.write(`Wrote → scripts/_out/rehydrate.sql\n`)
