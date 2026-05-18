@@ -136,16 +136,25 @@ function calcTeamEcon(roundData: RawMatch, ourPuuids: Set<string>): number {
   return total
 }
 
-// Sum ultimate ability casts for the given side from a V4 round.stats[] entry.
-// Henrik V4 puts per-round ability casts on `ps.ability_casts.ultimate`.
-function calcTeamUltsUsed(roundData: RawMatch, ourPuuids: Set<string>): number {
-  let total = 0
-  for (const ps of roundData.stats ?? []) {
-    if (!ourPuuids.has(ps.player?.puuid)) continue
-    const u = ps.ability_casts?.ultimate
-    if (typeof u === 'number') total += u
+// V4 returns null for rnd.stats[].ability_casts even when the field exists,
+// so per-round ult casts can't be read directly. Instead, count ult KILLS
+// from the kill events for the round — detected via weapon.type 'Ability'
+// + weapon.id 'Ultimate'. This is a lower bound (ults that didn't get a
+// kill are missed) but is the only reliable per-round signal V4 gives.
+function calcTeamUltKills(killEvents: RawMatch[], ourPuuids: Set<string>): {
+  ours: number
+  theirs: number
+} {
+  let ours = 0
+  let theirs = 0
+  for (const k of killEvents) {
+    if (!isUltKill(k)) continue
+    const kp = k?.killer?.puuid
+    if (!kp) continue
+    if (ourPuuids.has(kp)) ours++
+    else theirs++
   }
-  return total
+  return { ours, theirs }
 }
 
 // V4 kill geometry:
@@ -361,12 +370,19 @@ export type KillEventData = {
   victim_puuid: string | null
   killer_is_ours: boolean | null
   weapon_name: string | null
+  weapon_id: string | null
   headshot: boolean | null
   killer_x: number | null
   killer_y: number | null
   victim_x: number | null
   victim_y: number | null
   is_first_blood: boolean
+}
+
+// V4 ultimate kills come through with weapon.type === 'Ability' and weapon.id === 'Ultimate'.
+function isUltKill(k: RawMatch): boolean {
+  const w = k?.weapon
+  return w?.type === 'Ability' && w?.id === 'Ultimate'
 }
 
 export type OurPlayerData = {
@@ -568,8 +584,9 @@ export function transformMatchToRows(
     const ourEcon = calcTeamEcon(rnd, ourPuuids)
     const theirEcon = calcTeamEcon(rnd, oppPuuids)
     const roundType = classifyRoundType(ourEcon, theirEcon, roundNum)
-    const ourUltsUsed = calcTeamUltsUsed(rnd, ourPuuids)
-    const theirUltsUsed = calcTeamUltsUsed(rnd, oppPuuids)
+    const ultKills = calcTeamUltKills(killEvents, ourPuuids)
+    const ourUltsUsed = ultKills.ours
+    const theirUltsUsed = ultKills.theirs
 
     // First kill / first death from kills timeline (sorted by time_in_round_in_ms)
     const sortedKills = [...killEvents].sort(
@@ -722,7 +739,8 @@ export function transformMatchToRows(
         killer_puuid: killerPuuid,
         victim_puuid: victimPuuid,
         killer_is_ours: killerPuuid ? ourPuuids.has(killerPuuid) : null,
-        weapon_name: k?.weapon?.name ?? k?.weapon?.id ?? null,
+        weapon_name: k?.weapon?.name ?? null,
+        weapon_id: k?.weapon?.id ?? null,
         headshot: readHeadshot(k),
         killer_x: coords.killer_x,
         killer_y: coords.killer_y,

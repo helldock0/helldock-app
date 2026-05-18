@@ -103,11 +103,13 @@ export default function RoundsTab({
         </p>
       </div>
 
-      {/* Ult casts per round — full width */}
-      <Section title="Ult casts per round">
+      {/* Ult kills per round — full width */}
+      <Section title="Ult kills per round">
         <div className="mb-2 text-2xs text-muted-2 leading-relaxed">
-          Average ults dumped per round across matches in scope. Spikes after a
-          pistol win or before a force usually mean coordinated ult plays.
+          Average ult-kills per round across matches in scope (kills where
+          weapon = ultimate ability). Lower bound on ult usage — ults that
+          didn&apos;t convert to a kill aren&apos;t counted. Spikes after a pistol
+          win or before forced rounds usually mean coordinated ult plays.
         </div>
         <UltCastsChart points={stats.ultsByRound} />
       </Section>

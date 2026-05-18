@@ -114,10 +114,10 @@ WHERE match_id=${sqlStr(matchId)} AND riot_id_full=${sqlStr(op.riot_id_full)};`)
     const valuesRows = m.killEvents
       .map(
         (k) =>
-          `(${sqlStr(matchId)},${sqlNum(k.round_num)},${sqlNum(k.ts_in_round_ms)},${sqlStr(k.killer_puuid)},${sqlStr(k.victim_puuid)},${sqlBool(k.killer_is_ours)},${sqlStr(k.weapon_name)},${sqlBool(k.headshot)},${sqlNum(k.killer_x)},${sqlNum(k.killer_y)},${sqlNum(k.victim_x)},${sqlNum(k.victim_y)},${sqlBool(k.is_first_blood)})`
+          `(${sqlStr(matchId)},${sqlNum(k.round_num)},${sqlNum(k.ts_in_round_ms)},${sqlStr(k.killer_puuid)},${sqlStr(k.victim_puuid)},${sqlBool(k.killer_is_ours)},${sqlStr(k.weapon_name)},${sqlStr(k.weapon_id)},${sqlBool(k.headshot)},${sqlNum(k.killer_x)},${sqlNum(k.killer_y)},${sqlNum(k.victim_x)},${sqlNum(k.victim_y)},${sqlBool(k.is_first_blood)})`
       )
       .join(',\n  ')
-    out.push(`INSERT INTO kill_events (match_id, round_num, ts_in_round_ms, killer_puuid, victim_puuid, killer_is_ours, weapon_name, headshot, killer_x, killer_y, victim_x, victim_y, is_first_blood) VALUES
+    out.push(`INSERT INTO kill_events (match_id, round_num, ts_in_round_ms, killer_puuid, victim_puuid, killer_is_ours, weapon_name, weapon_id, headshot, killer_x, killer_y, victim_x, victim_y, is_first_blood) VALUES
   ${valuesRows};`)
     keCount += m.killEvents.length
   }
