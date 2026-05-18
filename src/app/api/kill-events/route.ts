@@ -16,6 +16,8 @@ export type KillEventRow = {
   match_date: string | null
   weapon_id: string | null
   headshot: boolean | null
+  ts_in_round_ms: number | null
+  plant_time_in_round: number | null
 }
 
 export async function GET(req: Request) {
@@ -45,39 +47,48 @@ export async function GET(req: Request) {
     return NextResponse.json({ events: [] satisfies KillEventRow[] })
   }
 
-  // Round-side lookup for the side filter on the heatmap
+  // Round-side + plant-time lookup. Side drives the heatmap side toggle;
+  // plant_time_in_round drives the post-plant / retake heatmap modes.
   const { data: rounds, error: rndErr } = await supabase
     .from('rounds')
-    .select('match_id, round_num, side')
+    .select('match_id, round_num, side, plant_time_in_round')
     .in('match_id', matchIds)
   if (rndErr) return NextResponse.json({ error: rndErr.message }, { status: 500 })
   const sideByKey: Record<string, string | null> = {}
+  const plantByKey: Record<string, number | null> = {}
   for (const r of rounds ?? []) {
-    sideByKey[`${r.match_id}|${r.round_num}`] = r.side
+    const key = `${r.match_id}|${r.round_num}`
+    sideByKey[key] = r.side
+    plantByKey[key] = r.plant_time_in_round
   }
 
   const { data: events, error: keErr } = await supabase
     .from('kill_events')
     .select(
-      'match_id, round_num, killer_x, killer_y, victim_x, victim_y, killer_is_ours, is_first_blood, weapon_id, headshot'
+      'match_id, round_num, killer_x, killer_y, victim_x, victim_y, killer_is_ours, is_first_blood, weapon_id, headshot, ts_in_round_ms'
     )
     .in('match_id', matchIds)
   if (keErr) return NextResponse.json({ error: keErr.message }, { status: 500 })
 
-  const rows: KillEventRow[] = (events ?? []).map((e) => ({
-    killer_x: e.killer_x,
-    killer_y: e.killer_y,
-    victim_x: e.victim_x,
-    victim_y: e.victim_y,
-    killer_is_ours: e.killer_is_ours,
-    is_first_blood: e.is_first_blood,
-    round_num: e.round_num,
-    side: sideByKey[`${e.match_id}|${e.round_num}`] ?? null,
-    match_id: e.match_id,
-    match_date: dateByMatch[e.match_id] ?? null,
-    weapon_id: e.weapon_id,
-    headshot: e.headshot,
-  }))
+  const rows: KillEventRow[] = (events ?? []).map((e) => {
+    const key = `${e.match_id}|${e.round_num}`
+    return {
+      killer_x: e.killer_x,
+      killer_y: e.killer_y,
+      victim_x: e.victim_x,
+      victim_y: e.victim_y,
+      killer_is_ours: e.killer_is_ours,
+      is_first_blood: e.is_first_blood,
+      round_num: e.round_num,
+      side: sideByKey[key] ?? null,
+      match_id: e.match_id,
+      match_date: dateByMatch[e.match_id] ?? null,
+      weapon_id: e.weapon_id,
+      headshot: e.headshot,
+      ts_in_round_ms: e.ts_in_round_ms,
+      plant_time_in_round: plantByKey[key] ?? null,
+    }
+  })
 
   return NextResponse.json({ events: rows })
 }

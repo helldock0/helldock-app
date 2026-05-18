@@ -6,6 +6,7 @@ import type { MapStat } from '@/lib/analytics'
 import type { Map } from '@/lib/valorant'
 import { MAP_RADARS } from '@/lib/valorant-maps'
 import MapHeatmap, {
+  isTacticalMode,
   type MapHeatmapMode,
   type MapHeatmapSide,
 } from '@/components/maps/MapHeatmap'
@@ -168,17 +169,22 @@ export default function MapsTab({ maps }: { maps: MapStat[] }) {
                 options={[
                   { value: 'first_blood', label: 'First contact' },
                   { value: 'all', label: 'All kills' },
+                  { value: 'post_plant_hold', label: 'Post-plant holds' },
+                  { value: 'retake_spot', label: 'Retake spots' },
                 ]}
               />
-              <ToggleGroup
-                value={side}
-                onChange={setSide}
-                options={[
-                  { value: 'all', label: 'Both' },
-                  { value: 'attack', label: 'ATT' },
-                  { value: 'defense', label: 'DEF' },
-                ]}
-              />
+              {/* Tactical modes pin the side; hide the side toggle for them. */}
+              {!isTacticalMode(mode) && (
+                <ToggleGroup
+                  value={side}
+                  onChange={setSide}
+                  options={[
+                    { value: 'all', label: 'Both' },
+                    { value: 'attack', label: 'ATT' },
+                    { value: 'defense', label: 'DEF' },
+                  ]}
+                />
+              )}
             </div>
 
             <div className="p-5">

@@ -5,7 +5,7 @@ import { MAP_RADARS, gameCoordToRadar } from '@/lib/valorant-maps'
 import type { Map } from '@/lib/valorant'
 import type { KillEventRow } from '@/app/api/kill-events/route'
 
-type DotKind = 'our_kill' | 'our_death'
+type DotKind = 'our_kill' | 'our_death' | 'our_position'
 
 type Dot = {
   x: number // normalized 0-1
@@ -14,12 +14,24 @@ type Dot = {
   recencyWeight: number // 0-1; newer = closer to 1
 }
 
-export type MapHeatmapMode = 'all' | 'first_blood'
+export type MapHeatmapMode =
+  | 'all'
+  | 'first_blood'
+  | 'post_plant_hold'  // our positions on ATT rounds, after we planted
+  | 'retake_spot'      // our positions on DEF rounds, after they planted
+
 export type MapHeatmapSide = 'all' | 'attack' | 'defense'
+
+const TACTICAL_MODES = new Set<MapHeatmapMode>(['post_plant_hold', 'retake_spot'])
+
+export function isTacticalMode(m: MapHeatmapMode): boolean {
+  return TACTICAL_MODES.has(m)
+}
 
 const KIND_COLOR: Record<DotKind, string> = {
   our_kill: '#34d399', // win-green
   our_death: '#ef4444', // crimson
+  our_position: '#FFD700', // gold — distinct from kill/death dots
 }
 
 export default function MapHeatmap({
@@ -47,30 +59,57 @@ export default function MapHeatmap({
     const tMin = dates.length ? Math.min(...dates) : 0
     const span = Math.max(1, tMax - tMin)
 
+    const tactical = isTacticalMode(mode)
+    // Tactical modes pin the side; the side toggle is ignored.
+    const impliedSide: MapHeatmapSide =
+      mode === 'post_plant_hold' ? 'attack' : mode === 'retake_spot' ? 'defense' : side
+
     const filtered = events.filter((e) => {
       if (mode === 'first_blood' && !e.is_first_blood) return false
-      if (side !== 'all') {
+
+      if (impliedSide !== 'all') {
         const s = (e.side ?? '').toLowerCase()
-        if (side === 'attack' && s !== 'attack') return false
-        if (side === 'defense' && s !== 'defense') return false
+        if (impliedSide === 'attack' && s !== 'attack') return false
+        if (impliedSide === 'defense' && s !== 'defense') return false
+      }
+
+      if (tactical) {
+        // Only OUR shooters' positions are useful for hold / retake analysis.
+        if (!e.killer_is_ours) return false
+        // Must be a round that actually had a plant and a timestamped kill that
+        // happened AFTER the plant.
+        if (e.plant_time_in_round == null) return false
+        if (e.ts_in_round_ms == null) return false
+        if (e.ts_in_round_ms <= e.plant_time_in_round * 1000) return false
       }
       return true
     })
 
     const out: Dot[] = []
     for (const e of filtered) {
-      if (e.victim_x == null || e.victim_y == null) continue
-      const norm = gameCoordToRadar(e.victim_x, e.victim_y, radar)
+      // Tactical modes plot the SHOOTER position (where we held / where we
+      // retook from); kill-feed modes plot the VICTIM position (where the
+      // bullet landed).
+      const cx = tactical ? e.killer_x : e.victim_x
+      const cy = tactical ? e.killer_y : e.victim_y
+      if (cx == null || cy == null) continue
+      const norm = gameCoordToRadar(cx, cy, radar)
       // Clip outliers off the radar canvas.
       if (norm.x < -0.05 || norm.x > 1.05 || norm.y < -0.05 || norm.y > 1.05) continue
 
       const t = e.match_date ? new Date(e.match_date).getTime() : tMin
       const recencyWeight = 0.35 + 0.65 * ((t - tMin) / span)
 
+      const kind: DotKind = tactical
+        ? 'our_position'
+        : e.killer_is_ours
+        ? 'our_kill'
+        : 'our_death'
+
       out.push({
         x: norm.x,
         y: norm.y,
-        kind: e.killer_is_ours ? 'our_kill' : 'our_death',
+        kind,
         recencyWeight,
       })
     }
@@ -85,8 +124,17 @@ export default function MapHeatmap({
     )
   }
 
+  const tactical = isTacticalMode(mode)
   const ourKills = dots.filter((d) => d.kind === 'our_kill').length
   const ourDeaths = dots.filter((d) => d.kind === 'our_death').length
+  const ourPositions = dots.filter((d) => d.kind === 'our_position').length
+
+  const tacticalLabel =
+    mode === 'post_plant_hold'
+      ? 'post-plant holds (ATT, our positions)'
+      : mode === 'retake_spot'
+      ? 'retake spots (DEF, our positions)'
+      : ''
 
   return (
     <div className="w-full">
@@ -121,22 +169,35 @@ export default function MapHeatmap({
 
       {/* Legend */}
       <div className="mt-3 flex items-center justify-between text-2xs uppercase tracking-wider text-muted-2">
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1.5">
-            <span
-              className="inline-block w-2.5 h-2.5 rounded-full"
-              style={{ backgroundColor: KIND_COLOR.our_kill }}
-            />
-            <span className="text-win-green tnum">{ourKills}</span> our kills
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span
-              className="inline-block w-2.5 h-2.5 rounded-full"
-              style={{ backgroundColor: KIND_COLOR.our_death }}
-            />
-            <span className="text-crimson tnum">{ourDeaths}</span> our deaths
-          </span>
-        </div>
+        {tactical ? (
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1.5">
+              <span
+                className="inline-block w-2.5 h-2.5 rounded-full"
+                style={{ backgroundColor: KIND_COLOR.our_position }}
+              />
+              <span className="text-gold tnum">{ourPositions}</span> our positions
+            </span>
+            <span className="text-muted">· {tacticalLabel}</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1.5">
+              <span
+                className="inline-block w-2.5 h-2.5 rounded-full"
+                style={{ backgroundColor: KIND_COLOR.our_kill }}
+              />
+              <span className="text-win-green tnum">{ourKills}</span> our kills
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span
+                className="inline-block w-2.5 h-2.5 rounded-full"
+                style={{ backgroundColor: KIND_COLOR.our_death }}
+              />
+              <span className="text-crimson tnum">{ourDeaths}</span> our deaths
+            </span>
+          </div>
+        )}
         <span className="text-muted">brighter = more recent</span>
       </div>
     </div>
