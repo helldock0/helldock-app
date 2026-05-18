@@ -18,6 +18,7 @@ export type KillEventRow = {
   headshot: boolean | null
   ts_in_round_ms: number | null
   plant_time_in_round: number | null
+  round_outcome: string | null
 }
 
 export async function GET(req: Request) {
@@ -47,19 +48,22 @@ export async function GET(req: Request) {
     return NextResponse.json({ events: [] satisfies KillEventRow[] })
   }
 
-  // Round-side + plant-time lookup. Side drives the heatmap side toggle;
-  // plant_time_in_round drives the post-plant / retake heatmap modes.
+  // Round-side + plant-time + outcome lookup. Side drives the heatmap side
+  // toggle; plant_time_in_round drives the post-plant / retake heatmap modes;
+  // outcome colors tactical dots green (won the round) vs crimson (lost it).
   const { data: rounds, error: rndErr } = await supabase
     .from('rounds')
-    .select('match_id, round_num, side, plant_time_in_round')
+    .select('match_id, round_num, side, plant_time_in_round, outcome')
     .in('match_id', matchIds)
   if (rndErr) return NextResponse.json({ error: rndErr.message }, { status: 500 })
   const sideByKey: Record<string, string | null> = {}
   const plantByKey: Record<string, number | null> = {}
+  const outcomeByKey: Record<string, string | null> = {}
   for (const r of rounds ?? []) {
     const key = `${r.match_id}|${r.round_num}`
     sideByKey[key] = r.side
     plantByKey[key] = r.plant_time_in_round
+    outcomeByKey[key] = r.outcome
   }
 
   const { data: events, error: keErr } = await supabase
@@ -87,6 +91,7 @@ export async function GET(req: Request) {
       headshot: e.headshot,
       ts_in_round_ms: e.ts_in_round_ms,
       plant_time_in_round: plantByKey[key] ?? null,
+      round_outcome: outcomeByKey[key] ?? null,
     }
   })
 

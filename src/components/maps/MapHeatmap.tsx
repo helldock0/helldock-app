@@ -5,7 +5,12 @@ import { MAP_RADARS, gameCoordToRadar } from '@/lib/valorant-maps'
 import type { Map } from '@/lib/valorant'
 import type { KillEventRow } from '@/app/api/kill-events/route'
 
-type DotKind = 'our_kill' | 'our_death' | 'our_position'
+type DotKind =
+  | 'our_kill'
+  | 'our_death'
+  | 'pos_won'      // tactical: we held / retook AND won the round
+  | 'pos_lost'    // tactical: we held / retook BUT lost the round
+  | 'pos_neutral' // tactical: no recorded outcome on the round
 
 type Dot = {
   x: number // normalized 0-1
@@ -31,7 +36,9 @@ export function isTacticalMode(m: MapHeatmapMode): boolean {
 const KIND_COLOR: Record<DotKind, string> = {
   our_kill: '#34d399', // win-green
   our_death: '#ef4444', // crimson
-  our_position: '#FFD700', // gold — distinct from kill/death dots
+  pos_won: '#34d399', // win-green — valuable spot (we won the round)
+  pos_lost: '#ef4444', // crimson — we still got fcked from this spot
+  pos_neutral: '#FFD700', // gold — no outcome recorded
 }
 
 export default function MapHeatmap({
@@ -100,11 +107,14 @@ export default function MapHeatmap({
       const t = e.match_date ? new Date(e.match_date).getTime() : tMin
       const recencyWeight = 0.35 + 0.65 * ((t - tMin) / span)
 
-      const kind: DotKind = tactical
-        ? 'our_position'
-        : e.killer_is_ours
-        ? 'our_kill'
-        : 'our_death'
+      let kind: DotKind
+      if (tactical) {
+        if (e.round_outcome === 'W') kind = 'pos_won'
+        else if (e.round_outcome === 'L') kind = 'pos_lost'
+        else kind = 'pos_neutral'
+      } else {
+        kind = e.killer_is_ours ? 'our_kill' : 'our_death'
+      }
 
       out.push({
         x: norm.x,
@@ -127,13 +137,15 @@ export default function MapHeatmap({
   const tactical = isTacticalMode(mode)
   const ourKills = dots.filter((d) => d.kind === 'our_kill').length
   const ourDeaths = dots.filter((d) => d.kind === 'our_death').length
-  const ourPositions = dots.filter((d) => d.kind === 'our_position').length
+  const posWon = dots.filter((d) => d.kind === 'pos_won').length
+  const posLost = dots.filter((d) => d.kind === 'pos_lost').length
+  const posNeutral = dots.filter((d) => d.kind === 'pos_neutral').length
 
   const tacticalLabel =
     mode === 'post_plant_hold'
-      ? 'post-plant holds (ATT, our positions)'
+      ? 'post-plant holds (ATT)'
       : mode === 'retake_spot'
-      ? 'retake spots (DEF, our positions)'
+      ? 'retake spots (DEF)'
       : ''
 
   return (
@@ -168,16 +180,32 @@ export default function MapHeatmap({
       </div>
 
       {/* Legend */}
-      <div className="mt-3 flex items-center justify-between text-2xs uppercase tracking-wider text-muted-2">
+      <div className="mt-3 flex items-center justify-between text-2xs uppercase tracking-wider text-muted-2 gap-3 flex-wrap">
         {tactical ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3 flex-wrap">
             <span className="flex items-center gap-1.5">
               <span
                 className="inline-block w-2.5 h-2.5 rounded-full"
-                style={{ backgroundColor: KIND_COLOR.our_position }}
+                style={{ backgroundColor: KIND_COLOR.pos_won }}
               />
-              <span className="text-gold tnum">{ourPositions}</span> our positions
+              <span className="text-win-green tnum">{posWon}</span> valuable
             </span>
+            <span className="flex items-center gap-1.5">
+              <span
+                className="inline-block w-2.5 h-2.5 rounded-full"
+                style={{ backgroundColor: KIND_COLOR.pos_lost }}
+              />
+              <span className="text-crimson tnum">{posLost}</span> fcked
+            </span>
+            {posNeutral > 0 && (
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="inline-block w-2.5 h-2.5 rounded-full"
+                  style={{ backgroundColor: KIND_COLOR.pos_neutral }}
+                />
+                <span className="text-gold tnum">{posNeutral}</span> n/a
+              </span>
+            )}
             <span className="text-muted">· {tacticalLabel}</span>
           </div>
         ) : (
