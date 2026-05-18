@@ -262,6 +262,10 @@ export default async function AnalyticsPage({
     fbWeapons: computeFirstBloodWeapons(filteredKillEvents, filteredRounds),
     damageNet: computeDamageNet(filteredMatchPlayers),
     plantTiming: computePlantTimingByMap(filteredMatches, filteredRounds),
+    pistolCarryOver: {
+      afterWin: roundsStats.pistol.bonusAfterWin,
+      afterLoss: roundsStats.pistol.bonusAfterLoss,
+    },
   }
 
   return (

@@ -171,10 +171,11 @@ export default function MapsTab({ maps }: { maps: MapStat[] }) {
                   { value: 'all', label: 'All kills' },
                   { value: 'post_plant_hold', label: 'Post-plant holds' },
                   { value: 'retake_spot', label: 'Retake spots' },
+                  { value: 'round_endpoint', label: 'Round endpoints' },
                 ]}
               />
-              {/* Tactical modes pin the side; hide the side toggle for them. */}
-              {!isTacticalMode(mode) && (
+              {/* post-plant / retake pin the side; round_endpoint respects it. */}
+              {(mode === 'round_endpoint' || !isTacticalMode(mode)) && (
                 <ToggleGroup
                   value={side}
                   onChange={setSide}

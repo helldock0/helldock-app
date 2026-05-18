@@ -24,10 +24,15 @@ export type MapHeatmapMode =
   | 'first_blood'
   | 'post_plant_hold'  // our positions on ATT rounds, after we planted
   | 'retake_spot'      // our positions on DEF rounds, after they planted
+  | 'round_endpoint'   // position of our last alive/dead player when the round ended
 
 export type MapHeatmapSide = 'all' | 'attack' | 'defense'
 
-const TACTICAL_MODES = new Set<MapHeatmapMode>(['post_plant_hold', 'retake_spot'])
+const TACTICAL_MODES = new Set<MapHeatmapMode>([
+  'post_plant_hold',
+  'retake_spot',
+  'round_endpoint',
+])
 
 export function isTacticalMode(m: MapHeatmapMode): boolean {
   return TACTICAL_MODES.has(m)
@@ -69,9 +74,33 @@ export default function MapHeatmap({
     const tactical = isTacticalMode(mode)
     // Tactical modes pin the side; the side toggle is ignored.
     const impliedSide: MapHeatmapSide =
-      mode === 'post_plant_hold' ? 'attack' : mode === 'retake_spot' ? 'defense' : side
+      mode === 'post_plant_hold'
+        ? 'attack'
+        : mode === 'retake_spot'
+        ? 'defense'
+        : mode === 'round_endpoint'
+        ? side // round_endpoint respects the side toggle
+        : side
 
-    const filtered = events.filter((e) => {
+    let working = events
+    if (mode === 'round_endpoint') {
+      // For each (match, round), keep ONLY the latest-timestamp event. That
+      // event's position is where the round actually ended — either the spot
+      // where we picked the last opponent (if we won the duel) or where our
+      // last player died (if they killed us last).
+      const byRound: Record<string, KillEventRow> = {}
+      for (const e of events) {
+        if (e.ts_in_round_ms == null) continue
+        const key = `${e.match_id}|${e.round_num}`
+        const cur = byRound[key]
+        if (!cur || (cur.ts_in_round_ms ?? -1) < e.ts_in_round_ms) {
+          byRound[key] = e
+        }
+      }
+      working = Object.values(byRound)
+    }
+
+    const filtered = working.filter((e) => {
       if (mode === 'first_blood' && !e.is_first_blood) return false
 
       if (impliedSide !== 'all') {
@@ -80,7 +109,7 @@ export default function MapHeatmap({
         if (impliedSide === 'defense' && s !== 'defense') return false
       }
 
-      if (tactical) {
+      if (mode === 'post_plant_hold' || mode === 'retake_spot') {
         // Only OUR shooters' positions are useful for hold / retake analysis.
         if (!e.killer_is_ours) return false
         // Must be a round that actually had a plant and a timestamped kill that
@@ -94,11 +123,28 @@ export default function MapHeatmap({
 
     const out: Dot[] = []
     for (const e of filtered) {
-      // Tactical modes plot the SHOOTER position (where we held / where we
-      // retook from); kill-feed modes plot the VICTIM position (where the
-      // bullet landed).
-      const cx = tactical ? e.killer_x : e.victim_x
-      const cy = tactical ? e.killer_y : e.victim_y
+      // Coord choice:
+      //  · post_plant_hold / retake_spot → killer (shooter) position
+      //  · round_endpoint → if WE made the last kill, plot killer pos (we held it);
+      //    if THEY made the last kill, plot victim pos (where our last guy fell)
+      //  · first_blood / all → victim position (where the bullet landed)
+      let cx: number | null
+      let cy: number | null
+      if (mode === 'round_endpoint') {
+        if (e.killer_is_ours) {
+          cx = e.killer_x
+          cy = e.killer_y
+        } else {
+          cx = e.victim_x
+          cy = e.victim_y
+        }
+      } else if (tactical) {
+        cx = e.killer_x
+        cy = e.killer_y
+      } else {
+        cx = e.victim_x
+        cy = e.victim_y
+      }
       if (cx == null || cy == null) continue
       const norm = gameCoordToRadar(cx, cy, radar)
       // Clip outliers off the radar canvas.
@@ -146,6 +192,8 @@ export default function MapHeatmap({
       ? 'post-plant holds (ATT)'
       : mode === 'retake_spot'
       ? 'retake spots (DEF)'
+      : mode === 'round_endpoint'
+      ? 'where rounds ended'
       : ''
 
   return (

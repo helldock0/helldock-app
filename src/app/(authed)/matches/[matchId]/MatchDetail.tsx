@@ -4,6 +4,7 @@ import React, { useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import ScoreProgressionChart from '@/components/charts/ScoreProgressionChart'
 import EconomyCurveChart from '@/components/charts/EconomyCurveChart'
+import WinProbCurve from '@/components/charts/WinProbCurve'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -232,11 +233,12 @@ function EF({ label, wide, children }: { label: string; wide?: boolean; children
 
 // ── Overview Tab ───────────────────────────────────────────────────────────
 
-function OverviewTab({ match, rounds, editMode, onMatchChange }: {
+function OverviewTab({ match, rounds, editMode, onMatchChange, roundWPs }: {
   match: Match
   rounds: Round[]
   editMode: boolean
   onMatchChange: (field: keyof Match, value: unknown) => void
+  roundWPs: RoundWP[]
 }) {
   const [ourAgentsRaw, setOurAgentsRaw] = useState(match.our_agents?.join(', ') ?? '')
   const [oppAgentsRaw, setOppAgentsRaw] = useState(match.opp_agents?.join(', ') ?? '')
@@ -253,6 +255,21 @@ function OverviewTab({ match, rounds, editMode, onMatchChange }: {
         <span className="text-2xs text-muted-2 uppercase tracking-wider">cumulative wins</span>
       </div>
       <ScoreProgressionChart rounds={rounds} />
+    </div>
+  ) : null
+
+  const wpCard = roundWPs.length >= 2 ? (
+    <div className="bg-[#2C2C32] rounded-xl p-6">
+      <div className="flex items-baseline justify-between mb-3">
+        <h3 className="text-[0.7rem] font-bold uppercase tracking-[0.22em] text-fg/90">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-gold mr-2 align-middle" />
+          Pre-round win probability
+        </h3>
+        <span className="text-2xs text-muted-2 uppercase tracking-wider">
+          dots = anti-strat surprises (&gt;25pp)
+        </span>
+      </div>
+      <WinProbCurve points={roundWPs} />
     </div>
   ) : null
 
@@ -291,6 +308,7 @@ function OverviewTab({ match, rounds, editMode, onMatchChange }: {
         </div>
       </div>
       {scoreCard}
+      {wpCard}
       </div>
     )
   }
@@ -372,6 +390,7 @@ function OverviewTab({ match, rounds, editMode, onMatchChange }: {
       </div>
     </div>
     {scoreCard}
+    {wpCard}
     </div>
   )
 }
@@ -486,11 +505,14 @@ function CoachTagsCell({
   )
 }
 
-function RoundsTab({ rounds, editMode, onRoundChange }: {
+function RoundsTab({ rounds, editMode, onRoundChange, roundWPs = [] }: {
   rounds: Round[]
   editMode: boolean
   onRoundChange: (id: string, field: string, value: unknown) => void
+  roundWPs?: RoundWP[]
 }) {
+  const wpByRound: Record<number, number> = {}
+  for (const w of roundWPs) wpByRound[w.round_num] = w.wpPct
   if (rounds.length === 0) return <EmptyState label="rounds" />
 
   const hasEcon = rounds.some((r) => r.our_econ != null || r.their_econ != null)
@@ -513,7 +535,7 @@ function RoundsTab({ rounds, editMode, onRoundChange }: {
       <table className="w-full text-xs whitespace-nowrap">
         <thead>
           <tr className="border-b border-[#3C3C44] text-[#6B7280] uppercase tracking-wide">
-            {['#', 'Half', 'Side', 'Type', 'Site', 'Our', 'Their', 'Out', 'FB', 'FB Player', 'Planter', 'Defuser', 'Clutch', 'MVP', 'Note', 'Grade', 'Tags'].map(h => (
+            {['#', 'Half', 'Side', 'Type', 'Site', 'Our', 'Their', 'Out', 'WP', 'FB', 'FB Player', 'Planter', 'Defuser', 'Clutch', 'MVP', 'Note', 'Grade', 'Tags'].map(h => (
               <th key={h} className="text-left px-3 py-2 font-normal">{h}</th>
             ))}
           </tr>
@@ -540,6 +562,41 @@ function RoundsTab({ rounds, editMode, onRoundChange }: {
                     : r.outcome === 'L'
                     ? <span className="text-[#DC143C] font-bold">L</span>
                     : '—'}
+              </td>
+              <td className="px-3 py-1.5 w-16 font-mono">
+                {(() => {
+                  const wp = wpByRound[r.round_num]
+                  if (wp == null) return <span className="text-[#3C3C44]">—</span>
+                  // Highlight "anti-strat" rounds: outcome surprised the model by >25pp.
+                  const expected = wp >= 50 ? 'W' : 'L'
+                  const surprise =
+                    r.outcome === 'W' || r.outcome === 'L'
+                      ? Math.abs((r.outcome === 'W' ? 100 : 0) - wp) > 25 &&
+                        r.outcome !== expected
+                      : false
+                  return (
+                    <span
+                      className={
+                        surprise
+                          ? r.outcome === 'W'
+                            ? 'text-win-green font-bold'
+                            : 'text-crimson font-bold'
+                          : wp >= 60
+                          ? 'text-win-green'
+                          : wp <= 40
+                          ? 'text-crimson'
+                          : 'text-[#6B7280]'
+                      }
+                      title={
+                        surprise
+                          ? `Surprise: model expected ${expected} (${wp}%) but we ${r.outcome === 'W' ? 'won' : 'lost'}`
+                          : `Pre-round WP: ${wp}%`
+                      }
+                    >
+                      {wp}%
+                    </span>
+                  )
+                })()}
               </td>
               <td className="px-3 py-1.5 w-16">
                 {editMode
@@ -729,18 +786,26 @@ function OppPlayersTab({ players, editMode, onOppPlayerChange }: {
 const TABS = ['Overview', 'Rounds', 'Players', 'Opp Players'] as const
 type Tab = (typeof TABS)[number]
 
+export type RoundWP = {
+  round_num: number
+  wpPct: number
+  outcome: string | null
+}
+
 export default function MatchDetail({
   match: initialMatch,
   rounds: initialRounds,
   matchPlayers: initialMatchPlayers,
   oppPlayers: initialOppPlayers,
   initialEdit = false,
+  roundWPs = [],
 }: {
   match: Match
   rounds: Round[]
   matchPlayers: MatchPlayer[]
   oppPlayers: OppPlayer[]
   initialEdit?: boolean
+  roundWPs?: RoundWP[]
 }) {
   const [tab, setTab] = useState<Tab>('Overview')
   const [editMode, setEditMode] = useState(initialEdit)
@@ -940,10 +1005,10 @@ export default function MatchDetail({
 
       {/* Tab content */}
       {tab === 'Overview' && (
-        <OverviewTab match={localMatch} rounds={localRounds} editMode={editMode} onMatchChange={handleMatchChange} />
+        <OverviewTab match={localMatch} rounds={localRounds} editMode={editMode} onMatchChange={handleMatchChange} roundWPs={roundWPs} />
       )}
       {tab === 'Rounds' && (
-        <RoundsTab rounds={localRounds} editMode={editMode} onRoundChange={handleRoundChange} />
+        <RoundsTab rounds={localRounds} editMode={editMode} onRoundChange={handleRoundChange} roundWPs={roundWPs} />
       )}
       {tab === 'Players' && (
         <PlayersTab players={localMatchPlayers} editMode={editMode} onPlayerChange={handleMpChange} />

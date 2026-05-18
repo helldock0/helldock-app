@@ -8,6 +8,12 @@ import type {
   DamageNetLeader,
   PlantTimingByMap,
 } from '@/lib/gems'
+import type { RoundCell } from '@/lib/analytics'
+
+export type PistolCarryOver = {
+  afterWin: RoundCell
+  afterLoss: RoundCell
+}
 
 export type GemsBundle = {
   multiKill: MultiKillLeader[]
@@ -16,11 +22,13 @@ export type GemsBundle = {
   fbWeapons: FbWeaponStat[]
   damageNet: DamageNetLeader[]
   plantTiming: PlantTimingByMap[]
+  pistolCarryOver: PistolCarryOver
 }
 
 export default function GemsTab({ gems }: { gems: GemsBundle }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <PistolCarryOverCard data={gems.pistolCarryOver} />
       <MultiKillCard rows={gems.multiKill} />
       <ClutchCard rows={gems.clutchLeverage} />
       <TradeCard stats={gems.tradePct} />
@@ -28,6 +36,73 @@ export default function GemsTab({ gems }: { gems: GemsBundle }) {
       <DamageNetCard rows={gems.damageNet} />
       <PlantTimingCard rows={gems.plantTiming} />
     </div>
+  )
+}
+
+function PistolCarryOverCard({ data }: { data: PistolCarryOver }) {
+  const aw = data.afterWin
+  const al = data.afterLoss
+  const delta =
+    aw.winPct != null && al.winPct != null
+      ? Math.round((aw.winPct - al.winPct) * 10) / 10
+      : null
+  return (
+    <Section
+      title="Pistol carry-over"
+      subtitle="rounds 2 & 3 W% after pistol W vs L"
+      accent="gold"
+    >
+      <div className="grid grid-cols-2 gap-4">
+        <div className="rounded-lg border border-win-green/30 bg-win-green/5 p-3">
+          <div className="text-2xs uppercase tracking-wider text-muted-2 mb-1">
+            after pistol W
+          </div>
+          <div className="flex items-baseline gap-2">
+            <div className="text-3xl font-bold tnum text-win-green">
+              {aw.winPct == null ? '—' : `${aw.winPct}%`}
+            </div>
+            <div className="text-2xs text-muted-2 tnum">n={aw.total}</div>
+          </div>
+        </div>
+        <div className="rounded-lg border border-crimson/30 bg-crimson/5 p-3">
+          <div className="text-2xs uppercase tracking-wider text-muted-2 mb-1">
+            after pistol L
+          </div>
+          <div className="flex items-baseline gap-2">
+            <div className="text-3xl font-bold tnum text-crimson">
+              {al.winPct == null ? '—' : `${al.winPct}%`}
+            </div>
+            <div className="text-2xs text-muted-2 tnum">n={al.total}</div>
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 pt-3 border-t border-line flex items-baseline justify-between">
+        <span className="text-2xs uppercase tracking-[0.16em] text-muted-2">
+          delta
+        </span>
+        <span
+          className={`text-xl font-bold tnum ${
+            delta == null
+              ? 'text-muted-2'
+              : delta >= 20
+              ? 'text-win-green'
+              : delta >= 5
+              ? 'text-gold'
+              : delta <= -5
+              ? 'text-crimson'
+              : 'text-muted'
+          }`}
+          title="W% in bonus rounds after pistol W minus W% after pistol L"
+        >
+          {delta == null ? '—' : `${delta > 0 ? '+' : ''}${delta}pp`}
+        </span>
+      </div>
+      <p className="mt-3 text-2xs text-muted-2 leading-relaxed">
+        Large positive delta = pistol wins translate to a strong bonus run. A
+        small or negative delta means the bonus round economy isn&apos;t being
+        converted — review buy patterns on round 2.
+      </p>
+    </Section>
   )
 }
 
