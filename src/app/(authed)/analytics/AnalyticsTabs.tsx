@@ -19,8 +19,9 @@ import OppsTab from './OppsTab'
 import RoundsTab from './RoundsTab'
 import CompLabTab from './CompLabTab'
 import MapPoolTab from './MapPoolTab'
+import GemsTab, { type GemsBundle } from './GemsTab'
 
-type TabKey = 'maps' | 'players' | 'opps' | 'rounds' | 'complab' | 'pool'
+type TabKey = 'maps' | 'players' | 'opps' | 'rounds' | 'complab' | 'pool' | 'gems'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'maps', label: 'Maps' },
@@ -29,6 +30,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'rounds', label: 'Rounds' },
   { key: 'complab', label: 'Comp Lab' },
   { key: 'pool', label: 'Map Pool' },
+  { key: 'gems', label: 'Gems' },
 ]
 
 export default function AnalyticsTabs({
@@ -42,6 +44,7 @@ export default function AnalyticsTabs({
   compLab,
   compMatrix,
   mapPool,
+  gems,
   defaultCompMap,
   roundsMapFilter,
   allMaps,
@@ -61,6 +64,7 @@ export default function AnalyticsTabs({
   compLab: CompLabResult
   compMatrix: CompMatrix
   mapPool: MapPoolEntry[]
+  gems: GemsBundle
   defaultCompMap: string
   roundsMapFilter: string | null
   allMaps: MapStat[]
@@ -166,6 +170,7 @@ export default function AnalyticsTabs({
           />
         )}
         {tab === 'pool' && <MapPoolTab pool={mapPool} />}
+        {tab === 'gems' && <GemsTab gems={gems} />}
       </div>
     </>
   )

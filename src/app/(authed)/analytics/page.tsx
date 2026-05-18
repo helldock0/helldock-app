@@ -11,6 +11,15 @@ import {
   computeMapPoolHealth,
   type FullMatchPlayer,
 } from '@/lib/analytics'
+import {
+  computeMultiKillLeaders,
+  computeClutchLeverage,
+  computeTradePct,
+  computeFirstBloodWeapons,
+  computeDamageNet,
+  computePlantTimingByMap,
+  type GemsKillEvent,
+} from '@/lib/gems'
 import type { DashMatch, DashRound } from '@/lib/dashboard'
 import { requireSelectedTeam } from '@/lib/team-session'
 import { TEAM_CONFIGS } from '@/lib/teams'
@@ -19,9 +28,9 @@ import AnalyticsTabs from './AnalyticsTabs'
 
 export const dynamic = 'force-dynamic'
 
-type TabKey = 'maps' | 'players' | 'opps' | 'rounds' | 'complab' | 'pool'
+type TabKey = 'maps' | 'players' | 'opps' | 'rounds' | 'complab' | 'pool' | 'gems'
 
-const VALID_TABS: ReadonlyArray<TabKey> = ['maps', 'players', 'opps', 'rounds', 'complab', 'pool']
+const VALID_TABS: ReadonlyArray<TabKey> = ['maps', 'players', 'opps', 'rounds', 'complab', 'pool', 'gems']
 
 export default async function AnalyticsPage({
   searchParams,
@@ -76,20 +85,27 @@ export default async function AnalyticsPage({
     )
   }
 
-  // Pull rounds, our players, opp players — all scoped to the matches we have
-  const [roundsRes, mpRes, oppRes] = await Promise.all([
+  // Pull rounds, our players, opp players, first-blood kill events — all scoped
+  // to the matches we have. The kill_events filter to is_first_blood=true keeps
+  // the payload tiny (~500 rows vs ~3.5k).
+  const [roundsRes, mpRes, oppRes, fbKillRes] = await Promise.all([
     supabase
       .from('rounds')
-      .select('match_id, round_num, half, side, round_type, outcome, first_blood, clutch_type, clutch_player, site, plant_time_in_round, defuse_time_in_round, our_ults_used, their_ults_used, coach_grade, coach_tags')
+      .select('match_id, round_num, half, side, round_type, outcome, first_blood, clutch_type, clutch_player, site, plant_time_in_round, defuse_time_in_round, our_ults_used, their_ults_used, coach_grade, coach_tags, was_traded')
       .in('match_id', matchIds),
     supabase
       .from('match_players')
-      .select('match_id, player_id, k, d, acs, plus_minus, agent, fk, fd, plants, defuses, clutches, econ, hs, bs, ls, damage_made, damage_received, adr, ability_c, ability_q, ability_e, ability_x, rounds_afk, friendly_fire_outgoing, friendly_fire_incoming, player:players(display_name)')
+      .select('match_id, player_id, k, d, acs, plus_minus, agent, fk, fd, plants, defuses, clutches, clutch_1v2plus, econ, hs, bs, ls, damage_made, damage_received, adr, ability_c, ability_q, ability_e, ability_x, rounds_afk, friendly_fire_outgoing, friendly_fire_incoming, two_k, three_k, four_k, aces, player:players(display_name)')
       .in('match_id', matchIds),
     supabase
       .from('opp_players')
       .select('match_id, agent, riot_id_full')
       .in('match_id', matchIds),
+    supabase
+      .from('kill_events')
+      .select('match_id, round_num, weapon_id, killer_is_ours, is_first_blood')
+      .in('match_id', matchIds)
+      .eq('is_first_blood', true),
   ])
 
   const rounds: DashRound[] = roundsRes.data ?? []
@@ -99,6 +115,7 @@ export default async function AnalyticsPage({
     agent: string | null
     riot_id_full: string | null
   }[]
+  const firstBloodKills = (fbKillRes.data ?? []) as GemsKillEvent[]
 
   // Build opp_name → distinct riot_ids map (for MMR refresh button + chip lookup)
   const matchIdToOpp: Record<string, string | null> = {}
@@ -182,6 +199,17 @@ export default async function AnalyticsPage({
   const compLab = computeCompLab(filteredMatches, compLabMap)
   const compMatrix = computeCompMatrix(filteredMatches)
   const mapPool = computeMapPoolHealth(filteredMatches)
+  const filteredKillEvents = hideAcademy
+    ? firstBloodKills.filter((k) => !internalMatchIds.has(k.match_id))
+    : firstBloodKills
+  const gems = {
+    multiKill: computeMultiKillLeaders(filteredMatchPlayers),
+    clutchLeverage: computeClutchLeverage(filteredMatchPlayers),
+    tradePct: computeTradePct(filteredMatches, filteredRounds),
+    fbWeapons: computeFirstBloodWeapons(filteredKillEvents, filteredRounds),
+    damageNet: computeDamageNet(filteredMatchPlayers),
+    plantTiming: computePlantTimingByMap(filteredMatches, filteredRounds),
+  }
 
   return (
     <main className="px-6 py-6 max-w-7xl mx-auto">
@@ -204,6 +232,7 @@ export default async function AnalyticsPage({
         compLab={compLab}
         compMatrix={compMatrix}
         mapPool={mapPool}
+        gems={gems}
         defaultCompMap={compLabMap}
         roundsMapFilter={roundsMapFilter}
         allMaps={mapsAll}

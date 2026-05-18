@@ -3,6 +3,7 @@ import { TEAM_CONFIGS } from '@/lib/teams'
 import { transformMatchToRows } from '@/lib/henrik/transformers'
 import { isPremierMatch } from '@/lib/henrik/client'
 import { NextResponse } from 'next/server'
+import { notifyDiscordForMatch, baseUrlFromRequest } from '@/lib/discord'
 import type { MatchPreview } from '../fetch/route'
 
 function nextMatchIdHelldock(current: string | null): string {
@@ -138,6 +139,9 @@ export async function POST(req: Request) {
     }
 
     results.push({ henrik_id: preview.henrik_id, match_id: currentMatchId, status: 'saved' })
+
+    // Fire-and-forget Discord notification — never throws, never blocks.
+    await notifyDiscordForMatch(supabase, teamId, matchUUID, baseUrlFromRequest(req))
   }
 
   const saved = results.filter((r) => r.status === 'saved').length

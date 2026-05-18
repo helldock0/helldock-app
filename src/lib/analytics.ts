@@ -317,6 +317,12 @@ export type FullMatchPlayer = DashMatchPlayer & {
   rounds_afk?: number | null
   friendly_fire_outgoing?: number | null
   friendly_fire_incoming?: number | null
+  // S13 — multi-kill counts + high-leverage clutches (optional)
+  two_k?: number | null
+  three_k?: number | null
+  four_k?: number | null
+  aces?: number | null
+  clutch_1v2plus?: number | null
 }
 
 export function computePlayerStats(

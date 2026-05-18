@@ -30,6 +30,8 @@ export type DashRound = {
   // S12 — coach grading (optional)
   coach_grade?: number | null
   coach_tags?: string[] | null
+  // S13 — trade cohesion (optional)
+  was_traded?: boolean | null
 }
 
 export type DashMatchPlayer = {

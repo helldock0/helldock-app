@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { notifyDiscordForMatch, baseUrlFromRequest } from '@/lib/discord'
 
 type OurPlayerInput = { player_id: string | null; agent: string | null }
 
@@ -132,6 +133,9 @@ export async function POST(req: Request) {
   if (oppError) {
     return NextResponse.json({ error: `opp_players insert failed: ${oppError.message}` }, { status: 500 })
   }
+
+  // Fire-and-forget Discord notification — never throws, never blocks the response.
+  await notifyDiscordForMatch(supabase, teamRow.id, matchUUID, baseUrlFromRequest(req))
 
   return NextResponse.json({
     id: matchUUID,
