@@ -105,10 +105,13 @@ export type MapStat = {
   bonusTotal: number
   aSiteExecPct: number | null
   aSiteExecTotal: number
+  aSiteExecWins: number
   bSiteExecPct: number | null
   bSiteExecTotal: number
+  bSiteExecWins: number
   cSiteExecPct: number | null
   cSiteExecTotal: number
+  cSiteExecWins: number
   avgFor: number | null
   avgAgainst: number | null
   tier: MapTier
@@ -240,10 +243,13 @@ export function computeMapStats(
       bonusTotal: a.bonusT,
       aSiteExecPct: pct(a.aW, a.aT),
       aSiteExecTotal: a.aT,
+      aSiteExecWins: a.aW,
       bSiteExecPct: pct(a.bW, a.bT),
       bSiteExecTotal: a.bT,
+      bSiteExecWins: a.bW,
       cSiteExecPct: pct(a.cW, a.cT),
       cSiteExecTotal: a.cT,
+      cSiteExecWins: a.cW,
       avgFor: score ? Math.round((score.forSum / score.n) * 10) / 10 : null,
       avgAgainst: score ? Math.round((score.agSum / score.n) * 10) / 10 : null,
       tier: classifyMapTier({ wins: w, total: t }),
