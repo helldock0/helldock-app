@@ -43,6 +43,7 @@ export default function AnalyticsTabs({
   compMatrix,
   mapPool,
   defaultCompMap,
+  roundsMapFilter,
   allMaps,
   riotIdsByOpp,
   ranksByRiotId,
@@ -61,6 +62,7 @@ export default function AnalyticsTabs({
   compMatrix: CompMatrix
   mapPool: MapPoolEntry[]
   defaultCompMap: string
+  roundsMapFilter: string | null
   allMaps: MapStat[]
   riotIdsByOpp: Record<string, string[]>
   ranksByRiotId: Record<string, MmrLookup>
@@ -148,7 +150,13 @@ export default function AnalyticsTabs({
             region={region}
           />
         )}
-        {tab === 'rounds' && <RoundsTab stats={roundsStats} />}
+        {tab === 'rounds' && (
+          <RoundsTab
+            stats={roundsStats}
+            activeMap={roundsMapFilter}
+            allMaps={allMaps}
+          />
+        )}
         {tab === 'complab' && (
           <CompLabTab
             result={compLab}

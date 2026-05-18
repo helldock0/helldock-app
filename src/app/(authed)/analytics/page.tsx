@@ -162,10 +162,22 @@ export default async function AnalyticsPage({
     ? searchParams.map
     : fallbackMap
 
+  // Rounds-tab map filter: ?map= when on rounds tab acts as filter (null = all maps).
+  // Reuses same param as CompLab so cross-tab navigation keeps the selection.
+  const roundsMapFilter =
+    searchParams.map && mapsAll.some((x) => x.map === searchParams.map)
+      ? searchParams.map
+      : null
+  const matchIdToMapName: Record<string, string | null> = {}
+  for (const m of filteredMatches) matchIdToMapName[m.id] = m.map_name
+  const roundsForStats = roundsMapFilter
+    ? filteredRounds.filter((r) => matchIdToMapName[r.match_id] === roundsMapFilter)
+    : filteredRounds
+
   // Compute everything once on the server (using filtered data)
   const players = computePlayerStats(filteredMatches, filteredMatchPlayers)
   const opps = computeOppStats(filteredMatches, filteredOppPlayers)
-  const roundsStats = computeRoundStats(filteredRounds)
+  const roundsStats = computeRoundStats(roundsForStats)
   const coachSummary = computeCoachSummary(filteredMatches, filteredRounds, filteredMatchPlayers)
   const compLab = computeCompLab(filteredMatches, compLabMap)
   const compMatrix = computeCompMatrix(filteredMatches)
@@ -193,6 +205,7 @@ export default async function AnalyticsPage({
         compMatrix={compMatrix}
         mapPool={mapPool}
         defaultCompMap={compLabMap}
+        roundsMapFilter={roundsMapFilter}
         allMaps={mapsAll}
         riotIdsByOpp={riotIdsByOpp}
         ranksByRiotId={ranksByRiotId}

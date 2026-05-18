@@ -1,7 +1,9 @@
 'use client'
 
-import type { RoundStats, RoundCell } from '@/lib/analytics'
+import { useRouter, useSearchParams } from 'next/navigation'
+import type { RoundStats, RoundCell, MapStat } from '@/lib/analytics'
 import { ROUND_TYPES } from '@/lib/analytics'
+import { MAPS } from '@/lib/valorant'
 
 function fmtPct(c: RoundCell): string {
   return c.winPct == null ? '—' : `${c.winPct}%`
@@ -52,8 +54,54 @@ function MiniStat({
   )
 }
 
-export default function RoundsTab({ stats }: { stats: RoundStats }) {
+export default function RoundsTab({
+  stats,
+  activeMap,
+  allMaps,
+}: {
+  stats: RoundStats
+  activeMap: string | null
+  allMaps: MapStat[]
+}) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  function changeMap(map: string) {
+    const params = new URLSearchParams(searchParams?.toString() ?? '')
+    params.set('tab', 'rounds')
+    if (map === '') params.delete('map')
+    else params.set('map', map)
+    router.push(`/analytics?${params.toString()}`)
+  }
+
   return (
+    <div className="space-y-4">
+      {/* Map filter */}
+      <div className="flex flex-wrap items-center gap-3 bg-surface-2 border border-line-strong/40 rounded-2xl p-4">
+        <label className="text-2xs uppercase tracking-[0.16em] text-muted-2">
+          Map
+        </label>
+        <select
+          value={activeMap ?? ''}
+          onChange={(e) => changeMap(e.target.value)}
+          className="bg-surface border border-line-strong text-fg rounded-md px-3 py-1.5 text-sm hover:border-gold/60 transition-colors"
+        >
+          <option value="">All maps</option>
+          {MAPS.map((m) => {
+            const stat = allMaps.find((x) => x.map === m)
+            const games = stat?.total ?? 0
+            return (
+              <option key={m} value={m}>
+                {m} {games > 0 ? `(${games})` : ''}
+              </option>
+            )
+          })}
+        </select>
+        <p className="ml-auto text-2xs text-muted-2 uppercase tracking-wider">
+          {activeMap ? `filtered to ${activeMap}` : 'all maps · aggregated'}
+        </p>
+      </div>
+
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* Quadrant 1 — round-type × side matrix */}
       <Section title="Round type × side">
@@ -216,6 +264,7 @@ export default function RoundsTab({ stats }: { stats: RoundStats }) {
           Seconds into the round. Late plants → execute slow. Late defuses → retake too aggressive.
         </p>
       </Section>
+    </div>
     </div>
   )
 }
