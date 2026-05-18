@@ -675,6 +675,8 @@ export type RoundStats = {
     medianDefuseTime: number | null
     defuseSample: number
   }
+  // S10 — average ult casts per round, both sides
+  ultsByRound: { round: number; ours: number | null; theirs: number | null; sample: number }[]
 }
 
 function cell(wins: number, total: number): RoundCell {
@@ -833,6 +835,34 @@ export function computeRoundStats(rounds: DashRound[]): RoundStats {
     return Math.round((xs.reduce((s, v) => s + v, 0) / xs.length) * 10) / 10
   }
 
+  // Ult casts per round (average across matches in scope, per side).
+  type UltAgg = { ourSum: number; ourN: number; theirSum: number; theirN: number }
+  const ultByRound: Record<number, UltAgg> = {}
+  for (const r of rounds) {
+    const cur = ultByRound[r.round_num] ?? { ourSum: 0, ourN: 0, theirSum: 0, theirN: 0 }
+    if (typeof r.our_ults_used === 'number') {
+      cur.ourSum += r.our_ults_used
+      cur.ourN++
+    }
+    if (typeof r.their_ults_used === 'number') {
+      cur.theirSum += r.their_ults_used
+      cur.theirN++
+    }
+    ultByRound[r.round_num] = cur
+  }
+  const ultsByRound: RoundStats['ultsByRound'] = Object.keys(ultByRound)
+    .map((k) => {
+      const round = Number(k)
+      const a = ultByRound[round]
+      return {
+        round,
+        ours: a.ourN > 0 ? Math.round((a.ourSum / a.ourN) * 100) / 100 : null,
+        theirs: a.theirN > 0 ? Math.round((a.theirSum / a.theirN) * 100) / 100 : null,
+        sample: Math.max(a.ourN, a.theirN),
+      }
+    })
+    .sort((x, y) => x.round - y.round)
+
   return {
     matrix,
     firstBlood: {
@@ -860,6 +890,7 @@ export function computeRoundStats(rounds: DashRound[]): RoundStats {
       medianDefuseTime: median(defuseTimes),
       defuseSample: defuseTimes.length,
     },
+    ultsByRound,
   }
 }
 

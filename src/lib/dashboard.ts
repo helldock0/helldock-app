@@ -24,6 +24,9 @@ export type DashRound = {
   // V4 additions (optional — older rounds may not have these)
   plant_time_in_round?: number | null
   defuse_time_in_round?: number | null
+  // S10 — per-round ult casts (optional)
+  our_ults_used?: number | null
+  their_ults_used?: number | null
 }
 
 export type DashMatchPlayer = {

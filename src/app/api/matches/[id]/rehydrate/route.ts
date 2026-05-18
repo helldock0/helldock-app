@@ -92,10 +92,22 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         defuse_time_in_round: r.defuse_time_in_round,
         our_econ_spent: r.our_econ_spent,
         their_econ_spent: r.their_econ_spent,
+        our_ults_used: r.our_ults_used,
+        their_ults_used: r.their_ults_used,
       })
       .eq('match_id', match.id)
       .eq('round_num', r.round_num)
     if (!error) roundsPatched++
+  }
+
+  // Replace kill_events for this match (delete + bulk insert)
+  let killEventsInserted = 0
+  await supabase.from('kill_events').delete().eq('match_id', match.id)
+  if (xf.killEvents.length) {
+    const { error: keErr } = await supabase
+      .from('kill_events')
+      .insert(xf.killEvents.map((k) => ({ ...k, match_id: match.id })))
+    if (!keErr) killEventsInserted = xf.killEvents.length
   }
 
   // Patch match_players by (match_id, player_id). We DO NOT touch manual fields
@@ -175,5 +187,6 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     rounds_patched: roundsPatched,
     match_players_patched: mpPatched,
     opp_players_patched: oppPatched,
+    kill_events_inserted: killEventsInserted,
   })
 }

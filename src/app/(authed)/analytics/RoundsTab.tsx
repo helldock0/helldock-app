@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import type { RoundStats, RoundCell, MapStat } from '@/lib/analytics'
 import { ROUND_TYPES } from '@/lib/analytics'
 import { MAPS } from '@/lib/valorant'
+import UltCastsChart from '@/components/charts/UltCastsChart'
 
 function fmtPct(c: RoundCell): string {
   return c.winPct == null ? '—' : `${c.winPct}%`
@@ -101,6 +102,15 @@ export default function RoundsTab({
           {activeMap ? `filtered to ${activeMap}` : 'all maps · aggregated'}
         </p>
       </div>
+
+      {/* Ult casts per round — full width */}
+      <Section title="Ult casts per round">
+        <div className="mb-2 text-2xs text-muted-2 leading-relaxed">
+          Average ults dumped per round across matches in scope. Spikes after a
+          pistol win or before a force usually mean coordinated ult plays.
+        </div>
+        <UltCastsChart points={stats.ultsByRound} />
+      </Section>
 
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* Quadrant 1 — round-type × side matrix */}

@@ -130,6 +130,13 @@ export async function POST(req: Request) {
       )
     }
 
+    // Insert kill_events (one row per kill across all rounds)
+    if (xf.killEvents.length) {
+      await supabase.from('kill_events').insert(
+        xf.killEvents.map((k) => ({ ...k, match_id: matchUUID }))
+      )
+    }
+
     results.push({ henrik_id: preview.henrik_id, match_id: currentMatchId, status: 'saved' })
   }
 

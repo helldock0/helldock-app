@@ -136,6 +136,39 @@ function calcTeamEcon(roundData: RawMatch, ourPuuids: Set<string>): number {
   return total
 }
 
+// Sum ultimate ability casts for the given side from a V4 round.stats[] entry.
+// Henrik V4 puts per-round ability casts on `ps.ability_casts.ultimate`.
+function calcTeamUltsUsed(roundData: RawMatch, ourPuuids: Set<string>): number {
+  let total = 0
+  for (const ps of roundData.stats ?? []) {
+    if (!ourPuuids.has(ps.player?.puuid)) continue
+    const u = ps.ability_casts?.ultimate
+    if (typeof u === 'number') total += u
+  }
+  return total
+}
+
+// Pull (x, y) from either `{x, y}` or `{location: {x, y}}` shapes.
+function readXY(obj: RawMatch | undefined | null): { x: number | null; y: number | null } {
+  if (!obj) return { x: null, y: null }
+  const cand = obj.location ?? obj
+  const x = typeof cand?.x === 'number' ? cand.x : null
+  const y = typeof cand?.y === 'number' ? cand.y : null
+  return { x, y }
+}
+
+function readHeadshot(k: RawMatch): boolean | null {
+  // Some V4 payloads expose top-level `headshot` bool; others use shot counts.
+  if (typeof k?.headshot === 'boolean') return k.headshot
+  const hs = k?.headshots
+  const bs = k?.bodyshots
+  const ls = k?.legshots
+  if (typeof hs !== 'number' || typeof bs !== 'number' || typeof ls !== 'number') return null
+  const total = hs + bs + ls
+  if (total === 0) return null
+  return hs >= bs && hs >= ls
+}
+
 function puuidToInfo(
   puuid: string,
   ourPlayers: RawMatch[],
@@ -298,6 +331,24 @@ export type RoundData = {
   defuse_time_in_round: number | null
   our_econ_spent: number | null
   their_econ_spent: number | null
+  // S10 — per-round ult casts
+  our_ults_used: number | null
+  their_ults_used: number | null
+}
+
+export type KillEventData = {
+  round_num: number
+  ts_in_round_ms: number | null
+  killer_puuid: string | null
+  victim_puuid: string | null
+  killer_is_ours: boolean | null
+  weapon_name: string | null
+  headshot: boolean | null
+  killer_x: number | null
+  killer_y: number | null
+  victim_x: number | null
+  victim_y: number | null
+  is_first_blood: boolean
 }
 
 export type OurPlayerData = {
@@ -376,6 +427,7 @@ export type TransformResult = {
   rounds: RoundData[]
   ourPlayers: OurPlayerData[]
   oppPlayers: OppPlayerData[]
+  killEvents: KillEventData[]
 }
 
 // ── Main exports ────────────────────────────────────────────────────────────
@@ -498,6 +550,8 @@ export function transformMatchToRows(
     const ourEcon = calcTeamEcon(rnd, ourPuuids)
     const theirEcon = calcTeamEcon(rnd, oppPuuids)
     const roundType = classifyRoundType(ourEcon, theirEcon, roundNum)
+    const ourUltsUsed = calcTeamUltsUsed(rnd, ourPuuids)
+    const theirUltsUsed = calcTeamUltsUsed(rnd, oppPuuids)
 
     // First kill / first death from kills timeline (sorted by time_in_round_in_ms)
     const sortedKills = [...killEvents].sort(
@@ -624,8 +678,43 @@ export function transformMatchToRows(
       // V4 dropped `economy.spent` per-round-per-player; loadout_value IS the spend that round
       our_econ_spent: ourEcon,
       their_econ_spent: theirEcon,
+      our_ults_used: ourUltsUsed,
+      their_ults_used: theirUltsUsed,
     }
   })
+
+  // Kill events — one row per kill across all rounds. Coordinates are V4
+  // optional (may be null on older matches or non-coord-providing endpoints).
+  const killEvents: KillEventData[] = []
+  for (const idxStr of Object.keys(meta.killsByRound)) {
+    const idx = Number(idxStr)
+    const roundNum = idx + 1
+    const list = meta.killsByRound[idx] ?? []
+    const sorted = [...list].sort(
+      (a, b) => (a.time_in_round_in_ms ?? 0) - (b.time_in_round_in_ms ?? 0)
+    )
+    for (let i = 0; i < sorted.length; i++) {
+      const k = sorted[i]
+      const killerPuuid: string | null = k?.killer?.puuid ?? null
+      const victimPuuid: string | null = k?.victim?.puuid ?? null
+      const killerXY = readXY(k?.killer)
+      const victimXY = readXY(k?.victim?.death_location ?? k?.victim)
+      killEvents.push({
+        round_num: roundNum,
+        ts_in_round_ms: typeof k?.time_in_round_in_ms === 'number' ? k.time_in_round_in_ms : null,
+        killer_puuid: killerPuuid,
+        victim_puuid: victimPuuid,
+        killer_is_ours: killerPuuid ? ourPuuids.has(killerPuuid) : null,
+        weapon_name: k?.weapon?.name ?? k?.weapon?.id ?? null,
+        headshot: readHeadshot(k),
+        killer_x: killerXY.x,
+        killer_y: killerXY.y,
+        victim_x: victimXY.x,
+        victim_y: victimXY.y,
+        is_first_blood: i === 0,
+      })
+    }
+  }
 
   // Our players
   const ourPlayers: OurPlayerData[] = meta.ourPlayersRaw.slice(0, 5).map((p: RawMatch) => {
@@ -689,5 +778,5 @@ export function transformMatchToRows(
     }
   })
 
-  return { matchData, rounds, ourPlayers, oppPlayers }
+  return { matchData, rounds, ourPlayers, oppPlayers, killEvents }
 }
