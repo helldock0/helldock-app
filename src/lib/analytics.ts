@@ -290,6 +290,20 @@ export type PlayerStat = {
   totalAfkRounds: number | null
   totalFfOutgoing: number | null
   ratingHistory: { date: string; rating: number; label: string }[]
+  // S16 — impact (trade rate, drag, carry). Null when puuid backfill is missing.
+  tradeRate: number | null
+  totalDeathsTracked: number
+  deathsTraded: number
+  drag: number | null
+  diedSample: number
+  aliveSample: number
+  lossPctWhenDead: number | null
+  lossPctWhenAlive: number | null
+  carry: number | null
+  hadKillSample: number
+  noKillSample: number
+  winPctWithKill: number | null
+  winPctWithoutKill: number | null
 }
 
 export type FullMatchPlayer = DashMatchPlayer & {
@@ -571,6 +585,64 @@ export function computePlayerStats(
       totalAfkRounds: a.afkN > 0 ? a.afkSum : null,
       totalFfOutgoing: a.ffOutN > 0 ? Math.round(a.ffOutSum * 10) / 10 : null,
       ratingHistory: [...a.ratingHistory].sort((x, y) => x.date.localeCompare(y.date)),
+      // S16 — defaults; merged in by page.tsx via computePlayerImpact.
+      tradeRate: null,
+      totalDeathsTracked: 0,
+      deathsTraded: 0,
+      drag: null,
+      diedSample: 0,
+      aliveSample: 0,
+      lossPctWhenDead: null,
+      lossPctWhenAlive: null,
+      carry: null,
+      hadKillSample: 0,
+      noKillSample: 0,
+      winPctWithKill: null,
+      winPctWithoutKill: null,
+    }
+  })
+}
+
+/** Merge per-player impact metrics (computed separately) into PlayerStat rows. */
+export function mergePlayerImpact(
+  players: PlayerStat[],
+  impactByPlayerId: Record<
+    string,
+    {
+      tradeRate: number | null
+      totalDeaths: number
+      deathsTraded: number
+      drag: number | null
+      diedSample: number
+      aliveSample: number
+      lossPctWhenDead: number | null
+      lossPctWhenAlive: number | null
+      carry: number | null
+      hadKillSample: number
+      noKillSample: number
+      winPctWithKill: number | null
+      winPctWithoutKill: number | null
+    }
+  >
+): PlayerStat[] {
+  return players.map((p) => {
+    const im = impactByPlayerId[p.playerId]
+    if (!im) return p
+    return {
+      ...p,
+      tradeRate: im.tradeRate,
+      totalDeathsTracked: im.totalDeaths,
+      deathsTraded: im.deathsTraded,
+      drag: im.drag,
+      diedSample: im.diedSample,
+      aliveSample: im.aliveSample,
+      lossPctWhenDead: im.lossPctWhenDead,
+      lossPctWhenAlive: im.lossPctWhenAlive,
+      carry: im.carry,
+      hadKillSample: im.hadKillSample,
+      noKillSample: im.noKillSample,
+      winPctWithKill: im.winPctWithKill,
+      winPctWithoutKill: im.winPctWithoutKill,
     }
   })
 }
@@ -934,6 +1006,8 @@ export type CoachSummary = {
     fourPlusPct: number | null // % of graded rounds in 7d that scored 4 or 5
     topTags: { tag: string; count: number }[] // up to 3, last 7d
   }
+  // S16 — team dependency. Highest-drag player who clears the sample size bar.
+  mostDepended: { name: string; dragPp: number } | null
 }
 
 export function computeCoachSummary(
@@ -1094,6 +1168,7 @@ export function computeCoachSummary(
     afkFlag,
     ffFlag,
     grading,
+    mostDepended: null, // analytics page injects the real value via computePlayerImpact
   }
 }
 

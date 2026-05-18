@@ -42,6 +42,9 @@ export type DashMatchPlayer = {
   // Optional — populated when the host page queries V4 fields
   rounds_afk?: number | null
   friendly_fire_outgoing?: number | null
+  // S16 — captured per match at import time; needed to link kill_events.victim_puuid
+  // / killer_puuid to a roster player_id when computing impact metrics.
+  puuid?: string | null
 }
 
 export const MIN_GAMES_FOR_MAP_RANK = 2

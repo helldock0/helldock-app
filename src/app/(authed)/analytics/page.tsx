@@ -9,8 +9,15 @@ import {
   computeCompLab,
   computeCompMatrix,
   computeMapPoolHealth,
+  mergePlayerImpact,
   type FullMatchPlayer,
 } from '@/lib/analytics'
+import {
+  computePlayerImpact,
+  pickMostDepended,
+  type ImpactMatchPlayer,
+  type ImpactKillEvent,
+} from '@/lib/impact'
 import {
   computeMultiKillLeaders,
   computeClutchLeverage,
@@ -85,17 +92,18 @@ export default async function AnalyticsPage({
     )
   }
 
-  // Pull rounds, our players, opp players, first-blood kill events — all scoped
-  // to the matches we have. The kill_events filter to is_first_blood=true keeps
-  // the payload tiny (~500 rows vs ~3.5k).
-  const [roundsRes, mpRes, oppRes, fbKillRes] = await Promise.all([
+  // Pull rounds, our players, opp players, kill events — all scoped to the
+  // matches we have. We now fetch ALL kill_events (not just first-blood) so the
+  // S16 impact compute can derive trade rate / drag / carry per player.
+  // FB-weapon compute filters down internally.
+  const [roundsRes, mpRes, oppRes, killRes] = await Promise.all([
     supabase
       .from('rounds')
       .select('match_id, round_num, half, side, round_type, outcome, first_blood, clutch_type, clutch_player, site, plant_time_in_round, defuse_time_in_round, our_ults_used, their_ults_used, coach_grade, coach_tags, was_traded')
       .in('match_id', matchIds),
     supabase
       .from('match_players')
-      .select('match_id, player_id, k, d, acs, plus_minus, agent, fk, fd, plants, defuses, clutches, clutch_1v2plus, econ, hs, bs, ls, damage_made, damage_received, adr, ability_c, ability_q, ability_e, ability_x, rounds_afk, friendly_fire_outgoing, friendly_fire_incoming, two_k, three_k, four_k, aces, player:players(display_name)')
+      .select('match_id, player_id, puuid, k, d, acs, plus_minus, agent, fk, fd, plants, defuses, clutches, clutch_1v2plus, econ, hs, bs, ls, damage_made, damage_received, adr, ability_c, ability_q, ability_e, ability_x, rounds_afk, friendly_fire_outgoing, friendly_fire_incoming, two_k, three_k, four_k, aces, player:players(display_name)')
       .in('match_id', matchIds),
     supabase
       .from('opp_players')
@@ -103,9 +111,8 @@ export default async function AnalyticsPage({
       .in('match_id', matchIds),
     supabase
       .from('kill_events')
-      .select('match_id, round_num, weapon_id, killer_is_ours, is_first_blood')
-      .in('match_id', matchIds)
-      .eq('is_first_blood', true),
+      .select('match_id, round_num, weapon_id, killer_is_ours, is_first_blood, killer_puuid, victim_puuid, ts_in_round_ms')
+      .in('match_id', matchIds),
   ])
 
   const rounds: DashRound[] = roundsRes.data ?? []
@@ -115,7 +122,17 @@ export default async function AnalyticsPage({
     agent: string | null
     riot_id_full: string | null
   }[]
-  const firstBloodKills = (fbKillRes.data ?? []) as GemsKillEvent[]
+  const allKills = (killRes.data ?? []) as Array<
+    GemsKillEvent & {
+      killer_puuid: string | null
+      victim_puuid: string | null
+      ts_in_round_ms: number | null
+    }
+  >
+  // FB-weapon compute (Gems) is a subset of all kills; we filter inline.
+  const firstBloodKills = allKills.filter(
+    (k) => k.is_first_blood === true
+  ) as GemsKillEvent[]
 
   // Build opp_name → distinct riot_ids map (for MMR refresh button + chip lookup)
   const matchIdToOpp: Record<string, string | null> = {}
@@ -192,13 +209,46 @@ export default async function AnalyticsPage({
     : filteredRounds
 
   // Compute everything once on the server (using filtered data)
-  const players = computePlayerStats(filteredMatches, filteredMatchPlayers)
+  const playersBase = computePlayerStats(filteredMatches, filteredMatchPlayers)
   const opps = computeOppStats(filteredMatches, filteredOppPlayers)
   const roundsStats = computeRoundStats(roundsForStats)
-  const coachSummary = computeCoachSummary(filteredMatches, filteredRounds, filteredMatchPlayers)
   const compLab = computeCompLab(filteredMatches, compLabMap)
   const compMatrix = computeCompMatrix(filteredMatches)
   const mapPool = computeMapPoolHealth(filteredMatches)
+
+  // S16 — Player impact (trade rate, drag, carry). Same hideAcademy filter
+  // applies to all kill_events. The impact compute also reads match_players to
+  // resolve puuid → player_id per match, so it gets the filtered list too.
+  const filteredAllKills = hideAcademy
+    ? allKills.filter((k) => !internalMatchIds.has(k.match_id))
+    : allKills
+  const impactInputMatchPlayers: ImpactMatchPlayer[] = filteredMatchPlayers.map(
+    (mp) => ({
+      match_id: mp.match_id,
+      player_id: mp.player_id,
+      puuid: mp.puuid ?? null,
+      player: mp.player,
+    })
+  )
+  const impacts = computePlayerImpact(
+    impactInputMatchPlayers,
+    filteredRounds.map((r) => ({
+      match_id: r.match_id,
+      round_num: r.round_num,
+      outcome: r.outcome,
+    })),
+    filteredAllKills as unknown as ImpactKillEvent[]
+  )
+  const impactByPlayerId = Object.fromEntries(
+    impacts.map((i) => [i.playerId, i])
+  )
+  const players = mergePlayerImpact(playersBase, impactByPlayerId)
+  const mostDepended = pickMostDepended(impacts)
+  const coachSummary = computeCoachSummary(filteredMatches, filteredRounds, filteredMatchPlayers)
+  // Override coach-summary's most-depended (the compute fn returns it as null;
+  // we inject the S16 value here so CoachSummaryStrip can render the new line).
+  coachSummary.mostDepended = mostDepended
+
   const filteredKillEvents = hideAcademy
     ? firstBloodKills.filter((k) => !internalMatchIds.has(k.match_id))
     : firstBloodKills

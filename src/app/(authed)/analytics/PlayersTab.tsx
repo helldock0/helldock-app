@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import type { PlayerStat } from '@/lib/analytics'
 import RatingTrendChart from '@/components/charts/RatingTrendChart'
 
-type SortKey = 'name' | 'games' | 'avgAcs' | 'avgKd' | 'avgPlusMinus' | 'bestMap' | 'delta' | 'fk' | 'fd' | 'plants' | 'defuses' | 'adr' | 'hs'
+type SortKey = 'name' | 'games' | 'avgAcs' | 'avgKd' | 'avgPlusMinus' | 'bestMap' | 'delta' | 'fk' | 'fd' | 'plants' | 'defuses' | 'adr' | 'hs' | 'trade' | 'drag' | 'carry'
 type SortDir = 'asc' | 'desc'
 
 const numCell = (n: number | null, suffix = '', decimals = 1) => {
@@ -52,6 +52,12 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
             return p.avgAdr ?? -Infinity
           case 'hs':
             return p.hsPct ?? -Infinity
+          case 'trade':
+            return p.tradeRate ?? -Infinity
+          case 'drag':
+            return p.drag ?? -Infinity
+          case 'carry':
+            return p.carry ?? -Infinity
         }
       }
       const av = get(a)
@@ -97,6 +103,9 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
             <Th label="Best Map" k="bestMap" sort={sort} onClick={toggleSort} align="left" />
             <th className="text-left px-4 py-3 font-semibold">Top Agent</th>
             <Th label="7d Δ" k="delta" sort={sort} onClick={toggleSort} align="right" />
+            <Th label="Trade%" k="trade" sort={sort} onClick={toggleSort} align="right" />
+            <Th label="Drag" k="drag" sort={sort} onClick={toggleSort} align="right" />
+            <Th label="Carry" k="carry" sort={sort} onClick={toggleSort} align="right" />
           </tr>
         </thead>
         <tbody>
@@ -187,13 +196,92 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
                       <span className="text-muted">0</span>
                     )}
                   </td>
+                  {/* S16 — impact metrics */}
+                  <td
+                    className="px-4 py-3 text-right tnum text-fg"
+                    title={
+                      p.tradeRate == null
+                        ? 'No puuid data yet — re-import or rehydrate the match'
+                        : `${p.deathsTraded} of ${p.totalDeathsTracked} deaths traded within 5s`
+                    }
+                  >
+                    {p.tradeRate == null ? (
+                      <span className="text-muted-2">—</span>
+                    ) : (
+                      <span
+                        className={
+                          p.tradeRate >= 60
+                            ? 'text-win-green'
+                            : p.tradeRate < 35
+                            ? 'text-crimson'
+                            : 'text-fg'
+                        }
+                      >
+                        {p.tradeRate}%
+                      </span>
+                    )}
+                  </td>
+                  <td
+                    className="px-4 py-3 text-right tnum"
+                    title={
+                      p.drag == null
+                        ? 'Not enough data'
+                        : `Loss% when dead: ${p.lossPctWhenDead ?? '?'}% (n=${p.diedSample}) vs alive: ${p.lossPctWhenAlive ?? '?'}% (n=${p.aliveSample})`
+                    }
+                  >
+                    {p.drag == null ? (
+                      <span className="text-muted-2">—</span>
+                    ) : (
+                      <span
+                        className={`font-semibold ${
+                          p.drag >= 15
+                            ? 'text-crimson'
+                            : p.drag >= 5
+                            ? 'text-gold'
+                            : p.drag <= -5
+                            ? 'text-win-green'
+                            : 'text-fg'
+                        }`}
+                      >
+                        {p.drag > 0 ? '+' : ''}
+                        {p.drag}pp
+                      </span>
+                    )}
+                  </td>
+                  <td
+                    className="px-4 py-3 text-right tnum"
+                    title={
+                      p.carry == null
+                        ? 'Not enough data'
+                        : `Win% with kill: ${p.winPctWithKill ?? '?'}% (n=${p.hadKillSample}) vs no kill: ${p.winPctWithoutKill ?? '?'}% (n=${p.noKillSample})`
+                    }
+                  >
+                    {p.carry == null ? (
+                      <span className="text-muted-2">—</span>
+                    ) : (
+                      <span
+                        className={`font-semibold ${
+                          p.carry >= 15
+                            ? 'text-win-green'
+                            : p.carry >= 5
+                            ? 'text-gold'
+                            : p.carry <= -5
+                            ? 'text-crimson'
+                            : 'text-fg'
+                        }`}
+                      >
+                        {p.carry > 0 ? '+' : ''}
+                        {p.carry}pp
+                      </span>
+                    )}
+                  </td>
                 </tr>
                 {isExpanded && (
                   <tr
                     key={`${p.playerId}-detail`}
                     className={i !== sorted.length - 1 ? 'border-b border-line' : ''}
                   >
-                    <td colSpan={14} className="bg-surface px-6 py-4 space-y-4">
+                    <td colSpan={17} className="bg-surface px-6 py-4 space-y-4">
                       {/* Rating trend chart */}
                       <div>
                         <div className="flex items-baseline justify-between mb-2">

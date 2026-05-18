@@ -119,6 +119,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     const { error } = await supabase
       .from('match_players')
       .update({
+        puuid: p.puuid,
         agent: p.agent,
         role: p.role,
         k: p.k,

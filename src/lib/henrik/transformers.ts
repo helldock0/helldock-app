@@ -387,6 +387,7 @@ function isUltKill(k: RawMatch): boolean {
 
 export type OurPlayerData = {
   riot_key: string
+  puuid: string | null
   agent: string
   role: string
   k: number
@@ -765,6 +766,7 @@ export function transformMatchToRows(
 
     return {
       riot_key: riotKey(p.name ?? '', p.tag ?? ''),
+      puuid: typeof p.puuid === 'string' ? p.puuid : null,
       agent,
       role: AGENT_TO_ROLE[agent] ?? '',
       k, d, a, acs,

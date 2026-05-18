@@ -111,6 +111,15 @@ export default function CoachSummaryStrip({ summary }: { summary: CoachSummary }
           }
           tone="muted"
         />
+        <Row
+          label="🪨 Most depended on"
+          value={
+            summary.mostDepended
+              ? `${summary.mostDepended.name} · +${summary.mostDepended.dragPp}pp drag`
+              : 'balanced'
+          }
+          tone={summary.mostDepended ? 'crimson' : 'muted'}
+        />
       </Card>
 
       {/* Recent form */}
