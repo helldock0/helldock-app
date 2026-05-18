@@ -283,6 +283,7 @@ export type PlayerStat = {
   avgX: number | null
   totalAfkRounds: number | null
   totalFfOutgoing: number | null
+  ratingHistory: { date: string; rating: number; label: string }[]
 }
 
 export type FullMatchPlayer = DashMatchPlayer & {
@@ -319,10 +320,12 @@ export function computePlayerStats(
   const matchIdToMap: Record<string, string | null> = {}
   const matchIdToResult: Record<string, string | null> = {}
   const matchIdToDate: Record<string, string> = {}
+  const matchIdToOpp: Record<string, string | null> = {}
   for (const m of matches) {
     matchIdToMap[m.id] = m.map_name
     matchIdToResult[m.id] = m.result
     matchIdToDate[m.id] = m.match_date
+    matchIdToOpp[m.id] = m.opponent_name
   }
 
   // Aggregate per player
@@ -354,6 +357,7 @@ export function computePlayerStats(
     xSum: number; xN: number
     afkSum: number; afkN: number
     ffOutSum: number; ffOutN: number
+    ratingHistory: { date: string; rating: number; label: string }[]
   }
   const agg: Record<string, PlayerAgg> = {}
 
@@ -386,6 +390,7 @@ export function computePlayerStats(
       xSum: 0, xN: 0,
       afkSum: 0, afkN: 0,
       ffOutSum: 0, ffOutN: 0,
+      ratingHistory: [],
     }
     a.games++
     if (mp.acs != null) {
@@ -421,13 +426,32 @@ export function computePlayerStats(
     if (mp.friendly_fire_outgoing != null) { a.ffOutSum += mp.friendly_fire_outgoing; a.ffOutN++ }
     const rating = computeRating({ k: mp.k, a: null, d: mp.d }) // rating uses (k + 0.5a)/max(d,1); we don't have `a` here on the lite row, so substitute below
     // Actually compute rating using k/d only when a isn't on this row — fall back to k/max(d,1)
+    let perMatchRating: number | null = null
     if (mp.k != null && mp.d != null) {
-      const r = mp.k / Math.max(mp.d, 1)
-      a.ratingSum += r
+      perMatchRating = mp.k / Math.max(mp.d, 1)
+      a.ratingSum += perMatchRating
       a.ratingN++
     } else if (rating != null) {
+      perMatchRating = rating
       a.ratingSum += rating
       a.ratingN++
+    }
+    if (perMatchRating != null) {
+      const date = matchIdToDate[mp.match_id]
+      const opp = matchIdToOpp[mp.match_id]
+      const mapName = matchIdToMap[mp.match_id]
+      const result = matchIdToResult[mp.match_id]
+      if (date) {
+        const parts: string[] = []
+        if (mapName) parts.push(mapName)
+        if (opp) parts.push(`vs ${opp}`)
+        if (result) parts.push(result)
+        a.ratingHistory.push({
+          date,
+          rating: Math.round(perMatchRating * 100) / 100,
+          label: parts.join(' · ') || 'match',
+        })
+      }
     }
     const map = matchIdToMap[mp.match_id]
     if (map) {
@@ -534,6 +558,7 @@ export function computePlayerStats(
       avgX,
       totalAfkRounds: a.afkN > 0 ? a.afkSum : null,
       totalFfOutgoing: a.ffOutN > 0 ? Math.round(a.ffOutSum * 10) / 10 : null,
+      ratingHistory: [...a.ratingHistory].sort((x, y) => x.date.localeCompare(y.date)),
     }
   })
 }
@@ -1070,6 +1095,78 @@ export function computeCompLab(matches: DashMatch[], mapName: string): CompLabRe
   losers.sort(byWinPctDesc)
 
   return { winners, experimental, losers }
+}
+
+// ── Comp Matrix (comp × map heatmap) ────────────────────────────────────────
+
+export type CompMatrixCell = {
+  wins: number
+  losses: number
+  total: number
+  winPct: number | null
+}
+
+export type CompMatrixRow = {
+  agents: string[]
+  archetype: Archetype
+  totalPlayed: number
+  totalWins: number
+  cells: Record<string, CompMatrixCell> // map name → cell
+}
+
+export type CompMatrix = {
+  maps: ValMap[] // only maps with at least 1 logged comp
+  rows: CompMatrixRow[] // sorted by total games desc
+}
+
+export function computeCompMatrix(matches: DashMatch[]): CompMatrix {
+  type Agg = { agents: string[]; perMap: Record<string, { wins: number; losses: number; total: number }> }
+  const byComp: Record<string, Agg> = {}
+  const mapsSeen = new Set<string>()
+
+  for (const m of matches) {
+    if (!m.map_name || !m.our_agents || m.our_agents.length === 0) continue
+    const sorted = [...m.our_agents].sort()
+    const key = sorted.join(',')
+    const cur = byComp[key] ?? { agents: sorted, perMap: {} }
+    const cell = cur.perMap[m.map_name] ?? { wins: 0, losses: 0, total: 0 }
+    cell.total++
+    if (m.result === 'W') cell.wins++
+    else if (m.result === 'L') cell.losses++
+    cur.perMap[m.map_name] = cell
+    byComp[key] = cur
+    mapsSeen.add(m.map_name)
+  }
+
+  const maps: ValMap[] = MAPS.filter((m) => mapsSeen.has(m))
+
+  const rows: CompMatrixRow[] = Object.values(byComp).map((agg) => {
+    const cells: Record<string, CompMatrixCell> = {}
+    let totalPlayed = 0
+    let totalWins = 0
+    for (const map of Object.keys(agg.perMap)) {
+      const c = agg.perMap[map]
+      cells[map] = {
+        wins: c.wins,
+        losses: c.losses,
+        total: c.total,
+        winPct: pct(c.wins, c.total),
+      }
+      totalPlayed += c.total
+      totalWins += c.wins
+    }
+    return {
+      agents: agg.agents,
+      archetype: classifyArchetype(agg.agents),
+      totalPlayed,
+      totalWins,
+      cells,
+    }
+  })
+
+  rows.sort((a, b) => b.totalPlayed - a.totalPlayed || b.totalWins - a.totalWins)
+
+  return { maps, rows }
 }
 
 // ── Map Pool Health ─────────────────────────────────────────────────────────

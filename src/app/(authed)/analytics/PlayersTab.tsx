@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import type { PlayerStat } from '@/lib/analytics'
+import RatingTrendChart from '@/components/charts/RatingTrendChart'
 
 type SortKey = 'name' | 'games' | 'avgAcs' | 'avgKd' | 'avgPlusMinus' | 'bestMap' | 'delta' | 'fk' | 'fd' | 'plants' | 'defuses' | 'adr' | 'hs'
 type SortDir = 'asc' | 'desc'
@@ -193,6 +194,18 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
                     className={i !== sorted.length - 1 ? 'border-b border-line' : ''}
                   >
                     <td colSpan={14} className="bg-surface px-6 py-4 space-y-4">
+                      {/* Rating trend chart */}
+                      <div>
+                        <div className="flex items-baseline justify-between mb-2">
+                          <div className="text-2xs uppercase tracking-[0.16em] text-muted-2">
+                            Rating trend
+                          </div>
+                          <div className="text-2xs text-muted-2 tracking-wider">
+                            (K + 0.5A) / max(D, 1) per match
+                          </div>
+                        </div>
+                        <RatingTrendChart points={p.ratingHistory} />
+                      </div>
                       {/* Advanced stats mini-grid */}
                       <div>
                         <div className="text-2xs uppercase tracking-[0.16em] text-muted-2 mb-2">

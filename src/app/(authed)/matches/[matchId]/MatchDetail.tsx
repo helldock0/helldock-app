@@ -2,6 +2,8 @@
 
 import React, { useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
+import ScoreProgressionChart from '@/components/charts/ScoreProgressionChart'
+import EconomyCurveChart from '@/components/charts/EconomyCurveChart'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -228,16 +230,33 @@ function EF({ label, wide, children }: { label: string; wide?: boolean; children
 
 // ── Overview Tab ───────────────────────────────────────────────────────────
 
-function OverviewTab({ match, editMode, onMatchChange }: {
+function OverviewTab({ match, rounds, editMode, onMatchChange }: {
   match: Match
+  rounds: Round[]
   editMode: boolean
   onMatchChange: (field: keyof Match, value: unknown) => void
 }) {
   const [ourAgentsRaw, setOurAgentsRaw] = useState(match.our_agents?.join(', ') ?? '')
   const [oppAgentsRaw, setOppAgentsRaw] = useState(match.opp_agents?.join(', ') ?? '')
 
+  const hasRoundOutcomes = rounds.some((r) => r.outcome === 'W' || r.outcome === 'L')
+
+  const scoreCard = hasRoundOutcomes ? (
+    <div className="bg-[#2C2C32] rounded-xl p-6">
+      <div className="flex items-baseline justify-between mb-3">
+        <h3 className="text-[0.7rem] font-bold uppercase tracking-[0.22em] text-fg/90">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-gold mr-2 align-middle" />
+          Score progression
+        </h3>
+        <span className="text-2xs text-muted-2 uppercase tracking-wider">cumulative wins</span>
+      </div>
+      <ScoreProgressionChart rounds={rounds} />
+    </div>
+  ) : null
+
   if (!editMode) {
     return (
+      <div className="space-y-4">
       <div className="bg-[#2C2C32] rounded-xl p-6">
         <div className="grid grid-cols-2 gap-x-8 gap-y-4">
           <Field label="Match ID" value={match.match_id_helldock} />
@@ -269,10 +288,13 @@ function OverviewTab({ match, editMode, onMatchChange }: {
           <Field label="Imported" value={match.imported_at ? formatDate(match.imported_at.split('T')[0]) : null} />
         </div>
       </div>
+      {scoreCard}
+      </div>
     )
   }
 
   return (
+    <div className="space-y-4">
     <div className="bg-[#2C2C32] rounded-xl p-6">
       <div className="grid grid-cols-2 gap-x-8 gap-y-4">
         <Field label="Match ID" value={match.match_id_helldock} />
@@ -347,6 +369,8 @@ function OverviewTab({ match, editMode, onMatchChange }: {
         <Field label="Imported" value={match.imported_at ? formatDate(match.imported_at.split('T')[0]) : null} />
       </div>
     </div>
+    {scoreCard}
+    </div>
   )
 }
 
@@ -362,7 +386,22 @@ function RoundsTab({ rounds, editMode, onRoundChange }: {
 }) {
   if (rounds.length === 0) return <EmptyState label="rounds" />
 
+  const hasEcon = rounds.some((r) => r.our_econ != null || r.their_econ != null)
+
   return (
+    <div className="space-y-4">
+    {hasEcon && (
+      <div className="bg-[#2C2C32] rounded-xl p-6">
+        <div className="flex items-baseline justify-between mb-3">
+          <h3 className="text-[0.7rem] font-bold uppercase tracking-[0.22em] text-fg/90">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-gold mr-2 align-middle" />
+            Economy curve
+          </h3>
+          <span className="text-2xs text-muted-2 uppercase tracking-wider">loadout value per round</span>
+        </div>
+        <EconomyCurveChart rounds={rounds} />
+      </div>
+    )}
     <div className="bg-[#2C2C32] rounded-xl overflow-x-auto">
       <table className="w-full text-xs whitespace-nowrap">
         <thead>
@@ -426,6 +465,7 @@ function RoundsTab({ rounds, editMode, onRoundChange }: {
           ))}
         </tbody>
       </table>
+    </div>
     </div>
   )
 }
@@ -769,7 +809,7 @@ export default function MatchDetail({
 
       {/* Tab content */}
       {tab === 'Overview' && (
-        <OverviewTab match={localMatch} editMode={editMode} onMatchChange={handleMatchChange} />
+        <OverviewTab match={localMatch} rounds={localRounds} editMode={editMode} onMatchChange={handleMatchChange} />
       )}
       {tab === 'Rounds' && (
         <RoundsTab rounds={localRounds} editMode={editMode} onRoundChange={handleRoundChange} />

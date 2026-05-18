@@ -7,6 +7,7 @@ import {
   computeRoundStats,
   computeCoachSummary,
   computeCompLab,
+  computeCompMatrix,
   computeMapPoolHealth,
   type FullMatchPlayer,
 } from '@/lib/analytics'
@@ -167,6 +168,7 @@ export default async function AnalyticsPage({
   const roundsStats = computeRoundStats(filteredRounds)
   const coachSummary = computeCoachSummary(filteredMatches, filteredRounds, filteredMatchPlayers)
   const compLab = computeCompLab(filteredMatches, compLabMap)
+  const compMatrix = computeCompMatrix(filteredMatches)
   const mapPool = computeMapPoolHealth(filteredMatches)
 
   return (
@@ -188,6 +190,7 @@ export default async function AnalyticsPage({
         roundsStats={roundsStats}
         coachSummary={coachSummary}
         compLab={compLab}
+        compMatrix={compMatrix}
         mapPool={mapPool}
         defaultCompMap={compLabMap}
         allMaps={mapsAll}

@@ -31,6 +31,9 @@ export type DashMatchPlayer = {
   player_id: string | null
   acs: number | null
   player: { display_name: string } | null
+  // Optional — populated when the host page queries V4 fields
+  rounds_afk?: number | null
+  friendly_fire_outgoing?: number | null
 }
 
 export const MIN_GAMES_FOR_MAP_RANK = 2
@@ -226,6 +229,173 @@ export function computeOppIntel(matches: DashMatch[]) {
     .map((name) => ({ name, ...byOpp[name] }))
     .sort((a, b) => b.total - a.total)
     .slice(0, 5)
+}
+
+// ── Zone 6: WATCH LIST (anomalies vs baseline) ─────────────────────────────
+
+export type WatchSeverity = 'warn' | 'alert'
+
+export type WatchItem = {
+  id: string
+  title: string
+  detail: string
+  severity: WatchSeverity
+  href?: string
+}
+
+export function computeWatchList(
+  matches: DashMatch[],
+  rounds: DashRound[],
+  matchPlayers: DashMatchPlayer[]
+): WatchItem[] {
+  const items: WatchItem[] = []
+
+  // 1. Player ACS drops vs 30d baseline.
+  // For each player: avg ACS over last-7d vs avg ACS over the prior 30d (8–30 days ago).
+  const matchIdToDate = new Map(matches.map((m) => [m.id, m.match_date]))
+  type Bucket = { name: string; recentSum: number; recentN: number; baseSum: number; baseN: number }
+  const buckets: Record<string, Bucket> = {}
+  for (const mp of matchPlayers) {
+    if (!mp.player_id || !mp.player || mp.acs == null) continue
+    const date = matchIdToDate.get(mp.match_id)
+    if (!date) continue
+    const recent = isWithinDays(date, 7)
+    const baseline = !recent && isWithinDays(date, 30)
+    if (!recent && !baseline) continue
+    const b = buckets[mp.player_id] ?? {
+      name: mp.player.display_name,
+      recentSum: 0,
+      recentN: 0,
+      baseSum: 0,
+      baseN: 0,
+    }
+    if (recent) {
+      b.recentSum += mp.acs
+      b.recentN++
+    } else {
+      b.baseSum += mp.acs
+      b.baseN++
+    }
+    buckets[mp.player_id] = b
+  }
+  for (const pid of Object.keys(buckets)) {
+    const b = buckets[pid]
+    if (b.recentN < 2 || b.baseN < 3) continue
+    const recentAvg = b.recentSum / b.recentN
+    const baseAvg = b.baseSum / b.baseN
+    if (baseAvg <= 0) continue
+    const dropPct = ((baseAvg - recentAvg) / baseAvg) * 100
+    if (dropPct >= 20) {
+      const sev: WatchSeverity = dropPct >= 30 ? 'alert' : 'warn'
+      items.push({
+        id: `acs-${pid}`,
+        title: `${b.name} · ACS −${Math.round(dropPct)}%`,
+        detail: `7d ${Math.round(recentAvg)} vs 30d ${Math.round(baseAvg)} · ${b.recentN} recent games`,
+        severity: sev,
+        href: '/analytics?tab=players',
+      })
+    }
+  }
+
+  // 2. Pistol DEF loss streak ≥ 3
+  const matchDateById = new Map(matches.map((m) => [m.id, m.match_date]))
+  const pistolDef = rounds
+    .filter((r) => r.round_type === 'Pistol' && r.side === 'Defense' && r.outcome)
+    .sort((a, b) => {
+      const da = matchDateById.get(a.match_id) ?? ''
+      const db = matchDateById.get(b.match_id) ?? ''
+      if (da !== db) return db.localeCompare(da)
+      return b.round_num - a.round_num
+    })
+  let streak = 0
+  for (const r of pistolDef) {
+    if (r.outcome === 'L') streak++
+    else break
+  }
+  if (streak >= 3) {
+    items.push({
+      id: 'pistol-def-streak',
+      title: `Pistol DEF · ${streak}-loss streak`,
+      detail: 'losing every defensive pistol — practice setups + first-contact spots',
+      severity: streak >= 5 ? 'alert' : 'warn',
+      href: '/analytics?tab=rounds',
+    })
+  }
+
+  // 3. Maps with 0 wins in last 5 plays (min 3 plays in that window)
+  type MapBucket = { wins: number; losses: number }
+  const recentByMap: Record<string, DashMatch[]> = {}
+  for (const m of matches) {
+    if (!m.map_name) continue
+    recentByMap[m.map_name] = recentByMap[m.map_name] ?? []
+    recentByMap[m.map_name].push(m)
+  }
+  for (const mp of Object.keys(recentByMap)) {
+    const sorted = [...recentByMap[mp]].sort((a, b) => b.match_date.localeCompare(a.match_date))
+    const last5 = sorted.slice(0, 5)
+    if (last5.length < 3) continue
+    const bucket: MapBucket = { wins: 0, losses: 0 }
+    for (const m of last5) {
+      if (m.result === 'W') bucket.wins++
+      else if (m.result === 'L') bucket.losses++
+    }
+    if (bucket.wins === 0 && bucket.losses >= 3) {
+      items.push({
+        id: `map-cold-${mp}`,
+        title: `${mp} · 0 wins in last ${bucket.losses}`,
+        detail: 'cold map — ban candidate or schedule focused VOD review',
+        severity: bucket.losses >= 4 ? 'alert' : 'warn',
+        href: '/analytics?tab=maps',
+      })
+    }
+  }
+
+  // 4. AFK / FF flags in last-7d match-players (only if data is queried)
+  const recentMatchIds = new Set(
+    matches.filter((m) => isWithinDays(m.match_date, 7)).map((m) => m.id)
+  )
+  type Flag = { name: string; rounds?: number; damage?: number }
+  let worstAfk: Flag | null = null
+  let worstFf: Flag | null = null
+  for (const mp of matchPlayers) {
+    if (!mp.player || !recentMatchIds.has(mp.match_id)) continue
+    if (mp.rounds_afk != null && mp.rounds_afk > 2) {
+      if (!worstAfk || (worstAfk.rounds ?? 0) < mp.rounds_afk) {
+        worstAfk = { name: mp.player.display_name, rounds: mp.rounds_afk }
+      }
+    }
+    if (mp.friendly_fire_outgoing != null && mp.friendly_fire_outgoing > 100) {
+      if (!worstFf || (worstFf.damage ?? 0) < mp.friendly_fire_outgoing) {
+        worstFf = { name: mp.player.display_name, damage: mp.friendly_fire_outgoing }
+      }
+    }
+  }
+  if (worstAfk) {
+    items.push({
+      id: 'afk-flag',
+      title: `${worstAfk.name} · AFK ${worstAfk.rounds} rds`,
+      detail: 'one or more matches in last 7 days flagged AFK by Riot',
+      severity: (worstAfk.rounds ?? 0) >= 5 ? 'alert' : 'warn',
+      href: '/analytics?tab=players',
+    })
+  }
+  if (worstFf) {
+    items.push({
+      id: 'ff-flag',
+      title: `${worstFf.name} · FF ${worstFf.damage} dmg`,
+      detail: 'friendly-fire damage above 100 in last 7d',
+      severity: (worstFf.damage ?? 0) >= 300 ? 'alert' : 'warn',
+      href: '/analytics?tab=players',
+    })
+  }
+
+  // Sort: alert before warn, then alphabetical for stability
+  items.sort((a, b) => {
+    if (a.severity !== b.severity) return a.severity === 'alert' ? -1 : 1
+    return a.title.localeCompare(b.title)
+  })
+
+  return items
 }
 
 // ── Zone 5: ENTRY STATS ─────────────────────────────────────────────────────

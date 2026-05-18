@@ -6,9 +6,11 @@ import {
   computeWorking,
   computeOppIntel,
   computeEntry,
+  computeWatchList,
   type DashMatch,
   type DashRound,
   type DashMatchPlayer,
+  type WatchItem,
 } from '@/lib/dashboard'
 import { requireSelectedTeam } from '@/lib/team-session'
 
@@ -94,6 +96,43 @@ function dash(n: number | null | undefined, suffix = ''): string {
   return `${n}${suffix}`
 }
 
+function WatchCard({ item }: { item: WatchItem }) {
+  const isAlert = item.severity === 'alert'
+  const accent = isAlert ? 'before:bg-crimson/80' : 'before:bg-gold/70'
+  const pill = isAlert
+    ? 'bg-crimson/15 text-crimson border-crimson/40'
+    : 'bg-gold/15 text-gold border-gold/40'
+  const body = (
+    <div
+      className={`
+        group relative overflow-hidden rounded-2xl bg-surface-2 p-4
+        border border-line-strong/40
+        before:absolute before:inset-y-0 before:left-0 before:w-[3px] ${accent}
+        transition-all duration-200 ease-out
+        hover:bg-surface-3 hover:border-line-strong
+        ${item.href ? 'cursor-pointer' : ''}
+      `}
+    >
+      <div className="flex items-start justify-between gap-3 mb-1.5">
+        <h3 className="text-sm font-semibold text-fg leading-tight tnum">{item.title}</h3>
+        <span
+          className={`shrink-0 text-2xs uppercase tracking-wider border px-2 py-0.5 rounded ${pill}`}
+        >
+          {isAlert ? 'act' : 'check'}
+        </span>
+      </div>
+      <p className="text-xs text-muted leading-snug">{item.detail}</p>
+    </div>
+  )
+  return item.href ? (
+    <Link href={item.href} className="block focus:outline-none">
+      {body}
+    </Link>
+  ) : (
+    body
+  )
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default async function HomePage() {
@@ -121,7 +160,9 @@ export default async function HomePage() {
     matchIds.length > 0
       ? supabase
           .from('match_players')
-          .select('match_id, player_id, acs, player:players(display_name)')
+          .select(
+            'match_id, player_id, acs, rounds_afk, friendly_fire_outgoing, player:players(display_name)'
+          )
           .in('match_id', matchIds)
       : Promise.resolve({ data: [] }),
   ])
@@ -162,6 +203,7 @@ export default async function HomePage() {
   const working = computeWorking(matches, rounds, matchPlayers)
   const oppIntel = computeOppIntel(matches)
   const entry = computeEntry(rounds)
+  const watchList = computeWatchList(matches, rounds, matchPlayers)
 
   return (
     <main className="px-6 py-6 max-w-7xl mx-auto">
@@ -206,6 +248,22 @@ export default async function HomePage() {
           />
         </div>
       </section>
+
+      {/* Zone 1.5 — WATCH LIST */}
+      {watchList.length > 0 && (
+        <section className="mb-7">
+          <ZoneHeader
+            title="Watch list"
+            accent={watchList.some((w) => w.severity === 'alert') ? 'crimson' : 'gold'}
+            hint={`${watchList.length} anomaly${watchList.length === 1 ? '' : 'ies'}`}
+          />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {watchList.map((item) => (
+              <WatchCard key={item.id} item={item} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Zone 2 — WHAT'S BROKEN */}
       <section className="mb-7">

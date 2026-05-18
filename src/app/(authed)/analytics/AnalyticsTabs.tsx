@@ -8,6 +8,7 @@ import type {
   RoundStats,
   CoachSummary,
   CompLabResult,
+  CompMatrix,
   MapPoolEntry,
 } from '@/lib/analytics'
 import type { MmrLookup } from '@/lib/henrik/mmr'
@@ -39,6 +40,7 @@ export default function AnalyticsTabs({
   roundsStats,
   coachSummary,
   compLab,
+  compMatrix,
   mapPool,
   defaultCompMap,
   allMaps,
@@ -56,6 +58,7 @@ export default function AnalyticsTabs({
   roundsStats: RoundStats
   coachSummary: CoachSummary
   compLab: CompLabResult
+  compMatrix: CompMatrix
   mapPool: MapPoolEntry[]
   defaultCompMap: string
   allMaps: MapStat[]
@@ -147,7 +150,12 @@ export default function AnalyticsTabs({
         )}
         {tab === 'rounds' && <RoundsTab stats={roundsStats} />}
         {tab === 'complab' && (
-          <CompLabTab result={compLab} defaultMap={defaultCompMap} allMaps={allMaps} />
+          <CompLabTab
+            result={compLab}
+            defaultMap={defaultCompMap}
+            allMaps={allMaps}
+            matrix={compMatrix}
+          />
         )}
         {tab === 'pool' && <MapPoolTab pool={mapPool} />}
       </div>
