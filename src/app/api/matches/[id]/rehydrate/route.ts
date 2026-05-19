@@ -12,6 +12,12 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: result.error }, { status: result.status })
   }
   // Strip the discriminator from the response so existing clients see the same shape.
-  const { ok: _ok, ...payload } = result
-  return NextResponse.json(payload)
+  return NextResponse.json({
+    match_id_helldock: result.match_id_helldock,
+    rounds_patched: result.rounds_patched,
+    match_players_patched: result.match_players_patched,
+    match_players_inserted: result.match_players_inserted,
+    opp_players_patched: result.opp_players_patched,
+    kill_events_inserted: result.kill_events_inserted,
+  })
 }
