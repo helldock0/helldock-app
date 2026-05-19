@@ -172,6 +172,7 @@ export default function MapsTab({ maps }: { maps: MapStat[] }) {
                   { value: 'post_plant_hold', label: 'Post-plant holds' },
                   { value: 'retake_spot', label: 'Retake spots' },
                   { value: 'round_endpoint', label: 'Round endpoints' },
+                  { value: 'plant_cluster', label: 'Plant cluster' },
                 ]}
               />
               {/* post-plant / retake pin the side; round_endpoint respects it. */}

@@ -12,6 +12,7 @@ import type {
   MapPoolEntry,
 } from '@/lib/analytics'
 import type { MmrLookup } from '@/lib/henrik/mmr'
+import type { SynergyMatrix } from '@/lib/comp-synergy'
 import CoachSummaryStrip from './CoachSummaryStrip'
 import MapsTab from './MapsTab'
 import PlayersTab from './PlayersTab'
@@ -43,6 +44,7 @@ export default function AnalyticsTabs({
   coachSummary,
   compLab,
   compMatrix,
+  synergy,
   mapPool,
   gems,
   defaultCompMap,
@@ -63,6 +65,7 @@ export default function AnalyticsTabs({
   coachSummary: CoachSummary
   compLab: CompLabResult
   compMatrix: CompMatrix
+  synergy: SynergyMatrix
   mapPool: MapPoolEntry[]
   gems: GemsBundle
   defaultCompMap: string
@@ -167,6 +170,7 @@ export default function AnalyticsTabs({
             defaultMap={defaultCompMap}
             allMaps={allMaps}
             matrix={compMatrix}
+            synergy={synergy}
           />
         )}
         {tab === 'pool' && <MapPoolTab pool={mapPool} />}

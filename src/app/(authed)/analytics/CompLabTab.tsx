@@ -7,6 +7,7 @@ import type {
   MapStat,
   CompMatrix,
 } from '@/lib/analytics'
+import type { SynergyMatrix, SynergyPair } from '@/lib/comp-synergy'
 import { MAPS } from '@/lib/valorant'
 
 function archetypeColor(arch: string): string {
@@ -258,21 +259,240 @@ function HeatmapView({ matrix }: { matrix: CompMatrix }) {
   )
 }
 
+// Color a synergy lift cell. Lift = pair W% − mean(solo W%s), in pp.
+// Strongly positive = duo overperforms; negative = anti-synergy.
+function liftColor(lift: number | null): { bg: string; text: string } {
+  if (lift == null) return { bg: 'transparent', text: '#6B7280' }
+  if (lift >= 0) {
+    // 0 → 0.1 alpha; +25pp → 0.6
+    const a = Math.min(0.6, 0.1 + (lift / 25) * 0.5)
+    return { bg: `rgba(52,211,153,${a.toFixed(2)})`, text: '#34D399' }
+  }
+  const a = Math.min(0.6, 0.1 + (-lift / 25) * 0.5)
+  return { bg: `rgba(220,20,60,${a.toFixed(2)})`, text: '#FCA5A5' }
+}
+
+function SynergyView({ synergy }: { synergy: SynergyMatrix }) {
+  if (synergy.agents.length < 2) {
+    return (
+      <div className="bg-surface-2 border border-line-strong/40 rounded-2xl p-8 text-center text-muted text-sm">
+        need 2+ agents across logged matches to compute synergy
+      </div>
+    )
+  }
+
+  // Top pairs (sorted by total, already filtered to n≥minSample) — small
+  // ranked list above the grid for quick read.
+  const top = synergy.pairs.slice(0, 8)
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-surface-2 border border-line-strong/40 rounded-2xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-line flex items-center gap-3">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-win-green" />
+          <h3 className="text-2xs font-bold uppercase tracking-[0.18em] text-fg/85">
+            Top pairs · lift over solo baselines
+          </h3>
+          <span className="ml-auto text-2xs text-muted-2 tracking-wider">
+            n ≥ {synergy.minSample}
+          </span>
+        </div>
+        {top.length === 0 ? (
+          <div className="p-5 text-xs text-muted">
+            not enough matches yet — need pairs that played together ≥{' '}
+            {synergy.minSample} times
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line text-2xs uppercase tracking-[0.16em] text-muted-2">
+                <th className="text-left px-4 py-2 font-semibold">Pair</th>
+                <th className="text-center px-3 py-2 font-semibold">G</th>
+                <th className="text-right px-3 py-2 font-semibold">Record</th>
+                <th className="text-right px-3 py-2 font-semibold">Pair W%</th>
+                <th className="text-right px-3 py-2 font-semibold">Solo avg</th>
+                <th className="text-right px-4 py-2 font-semibold">Lift</th>
+              </tr>
+            </thead>
+            <tbody>
+              {top.map((p, i) => {
+                const soloMean =
+                  p.soloAWinPct != null && p.soloBWinPct != null
+                    ? Math.round(((p.soloAWinPct + p.soloBWinPct) / 2) * 10) / 10
+                    : null
+                return (
+                  <tr
+                    key={`${p.a}|${p.b}`}
+                    className={i !== top.length - 1 ? 'border-b border-line' : ''}
+                  >
+                    <td className="px-4 py-2 text-fg">
+                      {p.a} · {p.b}
+                    </td>
+                    <td className="px-3 py-2 text-center text-muted tnum">
+                      {p.total}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono tnum">
+                      <span className="text-win-green">{p.wins}</span>
+                      <span className="text-muted-2">–</span>
+                      <span className="text-crimson">{p.losses}</span>
+                    </td>
+                    <td className="px-3 py-2 text-right tnum text-gold font-medium">
+                      {p.winPct == null ? '—' : `${p.winPct}%`}
+                    </td>
+                    <td className="px-3 py-2 text-right tnum text-muted">
+                      {soloMean == null ? '—' : `${soloMean}%`}
+                    </td>
+                    <td
+                      className={`px-4 py-2 text-right tnum font-semibold ${
+                        p.liftPp == null
+                          ? 'text-muted-2'
+                          : p.liftPp >= 5
+                          ? 'text-win-green'
+                          : p.liftPp <= -5
+                          ? 'text-crimson'
+                          : 'text-fg'
+                      }`}
+                    >
+                      {p.liftPp == null
+                        ? '—'
+                        : `${p.liftPp > 0 ? '+' : ''}${p.liftPp}pp`}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Pairwise grid — diagonal = solo W%, cells = pair W% colored by lift */}
+      <div className="bg-surface-2 border border-line-strong/40 rounded-2xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-line flex items-center gap-3">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-gold" />
+          <h3 className="text-2xs font-bold uppercase tracking-[0.18em] text-fg/85">
+            Pairwise grid
+          </h3>
+          <span className="text-2xs text-muted-2 uppercase tracking-wider ml-1">
+            diagonal = solo · cell = pair W% · color = lift
+          </span>
+          <span className="ml-auto text-2xs text-muted-2 tracking-wider">
+            {synergy.agents.length} agents
+          </span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="text-xs">
+            <thead>
+              <tr className="border-b border-line text-2xs uppercase tracking-[0.16em] text-muted-2">
+                <th className="text-left px-3 py-2 font-semibold sticky left-0 bg-surface-2 z-10 min-w-[120px]">
+                  Agent
+                </th>
+                {synergy.agents.map((a) => (
+                  <th
+                    key={a}
+                    className="px-2 py-2 font-semibold text-center min-w-[68px]"
+                  >
+                    {a}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {synergy.agents.map((rowAgent, i) => {
+                const solo = synergy.soloByAgent[rowAgent]
+                return (
+                  <tr
+                    key={rowAgent}
+                    className={i !== synergy.agents.length - 1 ? 'border-b border-line' : ''}
+                  >
+                    <td className="px-3 py-2 sticky left-0 bg-surface-2 z-10">
+                      <div className="text-fg">{rowAgent}</div>
+                      <div className="text-2xs text-muted-2 tnum">
+                        n={solo?.total ?? 0}
+                      </div>
+                    </td>
+                    {synergy.agents.map((colAgent) => {
+                      if (colAgent === rowAgent) {
+                        return (
+                          <td
+                            key={colAgent}
+                            className="px-2 py-2 text-center text-muted tnum bg-surface-3/30"
+                            title={`${rowAgent} solo W%`}
+                          >
+                            <span className="text-fg/90">
+                              {solo?.winPct == null ? '—' : `${solo.winPct}%`}
+                            </span>
+                          </td>
+                        )
+                      }
+                      const cell: SynergyPair | undefined =
+                        synergy.cells[rowAgent]?.[colAgent]
+                      if (!cell || cell.total === 0) {
+                        return (
+                          <td
+                            key={colAgent}
+                            className="px-2 py-2 text-center text-muted-2/40"
+                          >
+                            —
+                          </td>
+                        )
+                      }
+                      const c = liftColor(cell.liftPp)
+                      return (
+                        <td
+                          key={colAgent}
+                          className="px-1.5 py-1.5 text-center"
+                          title={`${rowAgent}+${colAgent} · ${cell.wins}-${cell.losses} · pair ${cell.winPct ?? '—'}% · lift ${cell.liftPp == null ? '—' : cell.liftPp + 'pp'}`}
+                        >
+                          <div
+                            className="rounded-md px-1.5 py-1 inline-flex flex-col items-center min-w-[3rem]"
+                            style={{ backgroundColor: c.bg, color: c.text }}
+                          >
+                            <span className="font-mono tnum leading-none">
+                              {cell.winPct == null ? '—' : `${cell.winPct}%`}
+                            </span>
+                            <span className="text-2xs tnum opacity-70 mt-0.5">
+                              n={cell.total}
+                            </span>
+                          </div>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+type ViewKind = 'permap' | 'heatmap' | 'synergy'
+
 export default function CompLabTab({
   result,
   defaultMap,
   allMaps,
   matrix,
+  synergy,
 }: {
   result: CompLabResult
   defaultMap: string
   allMaps: MapStat[]
   matrix: CompMatrix
+  synergy: SynergyMatrix
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const activeMap = searchParams?.get('map') ?? defaultMap
-  const view = searchParams?.get('view') === 'heatmap' ? 'heatmap' : 'permap'
+  const viewParam = searchParams?.get('view') ?? ''
+  const view: ViewKind =
+    viewParam === 'heatmap'
+      ? 'heatmap'
+      : viewParam === 'synergy'
+      ? 'synergy'
+      : 'permap'
 
   function changeMap(map: string) {
     const params = new URLSearchParams(searchParams?.toString() ?? '')
@@ -281,11 +501,11 @@ export default function CompLabTab({
     router.push(`/analytics?${params.toString()}`)
   }
 
-  function changeView(v: 'permap' | 'heatmap') {
+  function changeView(v: ViewKind) {
     const params = new URLSearchParams(searchParams?.toString() ?? '')
     params.set('tab', 'complab')
-    if (v === 'heatmap') params.set('view', 'heatmap')
-    else params.delete('view')
+    if (v === 'permap') params.delete('view')
+    else params.set('view', v)
     router.push(`/analytics?${params.toString()}`)
   }
 
@@ -315,6 +535,17 @@ export default function CompLabTab({
             }`}
           >
             Heatmap
+          </button>
+          <button
+            type="button"
+            onClick={() => changeView('synergy')}
+            className={`px-3 py-1.5 transition-colors border-l border-line-strong ${
+              view === 'synergy'
+                ? 'bg-gold text-black font-semibold'
+                : 'bg-surface text-muted hover:text-fg'
+            }`}
+          >
+            Synergy
           </button>
         </div>
 
@@ -350,10 +581,18 @@ export default function CompLabTab({
             cross-map performance · hover a cell for record
           </p>
         )}
+
+        {view === 'synergy' && (
+          <p className="ml-auto text-2xs text-muted-2 uppercase tracking-wider">
+            pair W% vs each player&apos;s solo baseline
+          </p>
+        )}
       </div>
 
       {view === 'heatmap' ? (
         <HeatmapView matrix={matrix} />
+      ) : view === 'synergy' ? (
+        <SynergyView synergy={synergy} />
       ) : (
         <>
           <Section

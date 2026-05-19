@@ -25,6 +25,7 @@ export type MapHeatmapMode =
   | 'post_plant_hold'  // our positions on ATT rounds, after we planted
   | 'retake_spot'      // our positions on DEF rounds, after they planted
   | 'round_endpoint'   // position of our last alive/dead player when the round ended
+  | 'plant_cluster'    // fights within ±5s of plant on ATT rounds (proxy for plant location)
 
 export type MapHeatmapSide = 'all' | 'attack' | 'defense'
 
@@ -32,7 +33,11 @@ const TACTICAL_MODES = new Set<MapHeatmapMode>([
   'post_plant_hold',
   'retake_spot',
   'round_endpoint',
+  'plant_cluster',
 ])
+
+// Width of the time window around plant_time used by plant_cluster mode.
+const PLANT_WINDOW_MS = 5000
 
 export function isTacticalMode(m: MapHeatmapMode): boolean {
   return TACTICAL_MODES.has(m)
@@ -78,6 +83,8 @@ export default function MapHeatmap({
         ? 'attack'
         : mode === 'retake_spot'
         ? 'defense'
+        : mode === 'plant_cluster'
+        ? 'attack' // plant_cluster only makes sense for our ATT rounds
         : mode === 'round_endpoint'
         ? side // round_endpoint respects the side toggle
         : side
@@ -118,6 +125,16 @@ export default function MapHeatmap({
         if (e.ts_in_round_ms == null) return false
         if (e.ts_in_round_ms <= e.plant_time_in_round * 1000) return false
       }
+
+      if (mode === 'plant_cluster') {
+        // Fights within ±PLANT_WINDOW_MS of the bomb plant. Best available
+        // proxy for "where did the execute land on site" — we don't store the
+        // planter's coordinate directly.
+        if (e.plant_time_in_round == null) return false
+        if (e.ts_in_round_ms == null) return false
+        const dt = e.ts_in_round_ms - e.plant_time_in_round * 1000
+        if (Math.abs(dt) > PLANT_WINDOW_MS) return false
+      }
       return true
     })
 
@@ -138,6 +155,11 @@ export default function MapHeatmap({
           cx = e.victim_x
           cy = e.victim_y
         }
+      } else if (mode === 'plant_cluster') {
+        // The bullet's landing spot is the best radar-anchor for "where the
+        // execute happened" — kills tend to cluster on/near the plant.
+        cx = e.victim_x
+        cy = e.victim_y
       } else if (tactical) {
         cx = e.killer_x
         cy = e.killer_y
@@ -194,6 +216,8 @@ export default function MapHeatmap({
       ? 'retake spots (DEF)'
       : mode === 'round_endpoint'
       ? 'where rounds ended'
+      : mode === 'plant_cluster'
+      ? 'fights near plant (ATT, ±5s)'
       : ''
 
   return (

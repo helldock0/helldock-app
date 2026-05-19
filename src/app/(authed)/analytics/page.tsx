@@ -18,6 +18,7 @@ import {
   type ImpactMatchPlayer,
   type ImpactKillEvent,
 } from '@/lib/impact'
+import { computeCompSynergy } from '@/lib/comp-synergy'
 import {
   computeMultiKillLeaders,
   computeClutchLeverage,
@@ -214,6 +215,7 @@ export default async function AnalyticsPage({
   const roundsStats = computeRoundStats(roundsForStats)
   const compLab = computeCompLab(filteredMatches, compLabMap)
   const compMatrix = computeCompMatrix(filteredMatches)
+  const synergy = computeCompSynergy(filteredMatches)
   const mapPool = computeMapPoolHealth(filteredMatches)
 
   // S16 — Player impact (trade rate, drag, carry). Same hideAcademy filter
@@ -288,6 +290,7 @@ export default async function AnalyticsPage({
         coachSummary={coachSummary}
         compLab={compLab}
         compMatrix={compMatrix}
+        synergy={synergy}
         mapPool={mapPool}
         gems={gems}
         defaultCompMap={compLabMap}
