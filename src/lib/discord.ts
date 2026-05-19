@@ -504,9 +504,19 @@ export async function notifyDiscordForMatch(
       await postMatchToDiscord(team.discord_webhook_url, summary)
     }
   } catch (e) {
-    console.warn(
-      `[discord] notify failed: ${e instanceof Error ? e.message : String(e)}`
-    )
+    const msg = e instanceof Error ? e.message : String(e)
+    console.warn(`[discord] notify failed: ${msg}`)
+    // Persist so the failure shows up on the Home page badge instead of
+    // disappearing into the void.
+    try {
+      await supabase.from('ingest_failures').insert({
+        match_id: matchUUID,
+        source: 'discord',
+        error: msg.slice(0, 1000),
+      })
+    } catch {
+      // ignore — best effort
+    }
   }
 }
 

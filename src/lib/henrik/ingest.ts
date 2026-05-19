@@ -210,14 +210,25 @@ export async function ingestMatch(opts: IngestOpts): Promise<IngestResult> {
     if (oppErr) return { status: 'error', error: `opp_players insert: ${oppErr.message}` }
   }
 
-  // kill_events — fire-and-forget like the original save route
+  // kill_events — not blocking, but record the failure if it bombs so we
+  // don't silently lose heatmap data.
   if (xf.killEvents.length) {
-    await supabase.from('kill_events').insert(
+    const { error: keErr } = await supabase.from('kill_events').insert(
       xf.killEvents.map((k) => ({ ...k, match_id: matchUUID }))
     )
+    if (keErr) {
+      await supabase.from('ingest_failures').insert({
+        match_id: matchUUID,
+        match_id_helldock: assignedHelldockId,
+        henrik_id: henrikId,
+        source: 'kill_events',
+        error: keErr.message,
+        payload: { count: xf.killEvents.length },
+      })
+    }
   }
 
-  // Discord (fire-and-forget; never throws)
+  // Discord (fire-and-forget; never throws). Records its own failures.
   await notifyDiscordForMatch(supabase, teamId, matchUUID, baseUrl)
 
   return { status: 'ingested', helldockId: assignedHelldockId, matchUUID }

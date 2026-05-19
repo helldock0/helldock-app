@@ -32,6 +32,56 @@ const OUR_KILL_COLOR = '#34d399' // win-green
 const OUR_DEATH_COLOR = '#ef4444' // crimson
 const RADAR_OVERLAY_OPACITY = 0.7
 
+// In-memory cache of recently-rendered heatmaps. Keyed on a cheap fingerprint
+// of (mapName, killEvents) — collisions are vanishingly unlikely across matches
+// because kills carry float coords. LRU-style cap on entries prevents the cache
+// from growing without bound across long-lived serverless instances.
+const HEATMAP_CACHE_MAX = 32
+const heatmapCache = new Map<string, Buffer>()
+
+function fingerprintKillEvents(
+  mapName: string,
+  events: HeatmapKillEvent[]
+): string {
+  // Use length + first + last + a sampled middle event. ~6 numbers; can't
+  // realistically collide between two distinct matches.
+  const n = events.length
+  if (n === 0) return `${mapName}::0`
+  const first = events[0]
+  const last = events[n - 1]
+  const mid = events[Math.floor(n / 2)]
+  return [
+    mapName,
+    n,
+    first.killer_x ?? '',
+    first.victim_y ?? '',
+    mid.killer_x ?? '',
+    mid.victim_y ?? '',
+    last.killer_x ?? '',
+    last.victim_y ?? '',
+  ].join('::')
+}
+
+function cacheGet(key: string): Buffer | null {
+  const hit = heatmapCache.get(key)
+  if (!hit) return null
+  // LRU bump: re-insert to make it the most-recent.
+  heatmapCache.delete(key)
+  heatmapCache.set(key, hit)
+  return hit
+}
+
+function cacheSet(key: string, buf: Buffer): void {
+  if (heatmapCache.has(key)) heatmapCache.delete(key)
+  heatmapCache.set(key, buf)
+  // Evict oldest if over cap.
+  while (heatmapCache.size > HEATMAP_CACHE_MAX) {
+    const oldest = heatmapCache.keys().next().value
+    if (oldest === undefined) break
+    heatmapCache.delete(oldest)
+  }
+}
+
 export async function renderMatchHeatmapPng(opts: {
   mapName: string | null
   killEvents: HeatmapKillEvent[]
@@ -42,6 +92,10 @@ export async function renderMatchHeatmapPng(opts: {
   const radar = MAP_RADARS[mapName as ValMap]
   if (!radar) return null
   if (!killEvents.length) return null
+
+  const cacheKey = fingerprintKillEvents(mapName, killEvents)
+  const cached = cacheGet(cacheKey)
+  if (cached) return cached
 
   try {
     const radarRes = await fetch(radar.radarUrl)
@@ -77,7 +131,9 @@ export async function renderMatchHeatmapPng(opts: {
       .render()
       .asPng()
 
-    return Buffer.from(png)
+    const buf = Buffer.from(png)
+    cacheSet(cacheKey, buf)
+    return buf
   } catch (e) {
     console.warn(
       `[discord-heatmap] render failed: ${e instanceof Error ? e.message : String(e)}`

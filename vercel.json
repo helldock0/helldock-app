@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/mmr-refresh",
+      "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/cron/rehydrate-recent",
+      "schedule": "30 21 * * 6"
+    }
+  ]
+}
