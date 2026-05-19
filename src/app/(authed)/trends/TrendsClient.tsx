@@ -63,6 +63,7 @@ export default function TrendsClient({
   streaks,
   retro,
   totalMatches,
+  children,
 }: {
   rolling: RollingWinPoint[]
   sideWeekly: WeeklySidePoint[]
@@ -70,6 +71,7 @@ export default function TrendsClient({
   streaks: Streaks
   retro: WeeklyRetro
   totalMatches: number
+  children?: React.ReactNode
 }) {
   // Build the player ACS series data — interleaved by date
   // Each row = { date, [playerName]: avgAcs }
@@ -457,6 +459,8 @@ export default function TrendsClient({
           </>
         )}
       </section>
+
+      {children && <div className="mt-6">{children}</div>}
     </main>
   )
 }

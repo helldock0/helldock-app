@@ -11,7 +11,9 @@ import {
   type TrendsMatchPlayer,
 } from '@/lib/trends'
 import type { DashRound } from '@/lib/dashboard'
+import type { WPRound } from '@/lib/win-probability'
 import TrendsClient from './TrendsClient'
+import ModelHealthPanel from './ModelHealthPanel'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,14 +61,27 @@ export default async function TrendsPage() {
   const [roundsRes, mpRes] = await Promise.all([
     supabase
       .from('rounds')
-      .select('match_id, round_num, half, side, round_type, outcome, first_blood, clutch_type, clutch_player, site')
+      .select('match_id, round_num, half, side, round_type, outcome, first_blood, clutch_type, clutch_player, site, our_econ, their_econ')
       .in('match_id', matchIds),
     supabase
       .from('match_players')
       .select('match_id, player_id, acs, player:players(display_name, roster_status)')
       .in('match_id', matchIds),
   ])
-  const rounds: DashRound[] = roundsRes.data ?? []
+  const roundsAll = (roundsRes.data ?? []) as Array<
+    DashRound & { our_econ?: number | null; their_econ?: number | null }
+  >
+  const rounds: DashRound[] = roundsAll
+  // C1 — typed slice for WP model training (server-side calibration panel).
+  const wpRounds: WPRound[] = roundsAll.map((r) => ({
+    match_id: r.match_id,
+    round_num: r.round_num,
+    side: r.side,
+    outcome: r.outcome,
+    round_type: r.round_type,
+    our_econ: r.our_econ ?? null,
+    their_econ: r.their_econ ?? null,
+  }))
   // Trials are excluded from team aggregates.
   const matchPlayers = ((mpRes.data ?? []) as unknown as Array<
     TrendsMatchPlayer & { player?: { roster_status?: string } | null }
@@ -86,6 +101,8 @@ export default async function TrendsPage() {
       streaks={streaks}
       retro={retro}
       totalMatches={matches.length}
-    />
+    >
+      <ModelHealthPanel rounds={wpRounds} />
+    </TrendsClient>
   )
 }
