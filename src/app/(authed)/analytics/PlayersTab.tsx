@@ -99,26 +99,26 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
         <thead>
           <tr className="border-b border-line text-2xs uppercase tracking-[0.16em] text-muted-2">
             <Th label="Player" k="name" sort={sort} onClick={toggleSort} align="left" />
-            <Th label="G" k="games" sort={sort} onClick={toggleSort} align="center" />
-            <Th label="Avg ACS" k="avgAcs" sort={sort} onClick={toggleSort} align="right" />
-            <Th label="ADR" k="adr" sort={sort} onClick={toggleSort} align="right" />
-            <Th label="HS%" k="hs" sort={sort} onClick={toggleSort} align="right" />
-            <Th label="K/D" k="avgKd" sort={sort} onClick={toggleSort} align="right" />
-            <Th label="+/−" k="avgPlusMinus" sort={sort} onClick={toggleSort} align="right" />
-            <Th label="FK" k="fk" sort={sort} onClick={toggleSort} align="right" />
-            <Th label="FD" k="fd" sort={sort} onClick={toggleSort} align="right" />
-            <Th label="Plants" k="plants" sort={sort} onClick={toggleSort} align="right" />
-            <Th label="Defuses" k="defuses" sort={sort} onClick={toggleSort} align="right" />
-            <Th label="Best Map" k="bestMap" sort={sort} onClick={toggleSort} align="left" />
+            <Th label="G" k="games" sort={sort} onClick={toggleSort} align="center" tooltip="Games played in scope." />
+            <Th label="Avg ACS" k="avgAcs" sort={sort} onClick={toggleSort} align="right" tooltip="Average Combat Score per game — Riot's overall impact stat. Higher = better." />
+            <Th label="ADR" k="adr" sort={sort} onClick={toggleSort} align="right" tooltip="Average Damage per Round, averaged across games." />
+            <Th label="HS%" k="hs" sort={sort} onClick={toggleSort} align="right" tooltip="Headshot percentage. % of your kills that were headshots." />
+            <Th label="K/D" k="avgKd" sort={sort} onClick={toggleSort} align="right" tooltip="Kills divided by deaths, averaged per game. 1.0 = breaking even." />
+            <Th label="+/−" k="avgPlusMinus" sort={sort} onClick={toggleSort} align="right" tooltip="Average kill differential per game (kills minus deaths)." />
+            <Th label="FK" k="fk" sort={sort} onClick={toggleSort} align="right" tooltip="First Kills — average per game where you got the opening kill of a round." />
+            <Th label="FD" k="fd" sort={sort} onClick={toggleSort} align="right" tooltip="First Deaths — average per game where you took the opening death of a round." />
+            <Th label="Plants" k="plants" sort={sort} onClick={toggleSort} align="right" tooltip="Average bomb plants per game." />
+            <Th label="Defuses" k="defuses" sort={sort} onClick={toggleSort} align="right" tooltip="Average bomb defuses per game." />
+            <Th label="Best Map" k="bestMap" sort={sort} onClick={toggleSort} align="left" tooltip="Your map with the highest win-rate (minimum 2 games)." />
             <th className="text-left px-4 py-3 font-semibold">Top Agent</th>
-            <Th label="7d Δ" k="delta" sort={sort} onClick={toggleSort} align="right" />
-            <Th label="Trade%" k="trade" sort={sort} onClick={toggleSort} align="right" />
-            <Th label="Drag" k="drag" sort={sort} onClick={toggleSort} align="right" />
-            <Th label="Carry" k="carry" sort={sort} onClick={toggleSort} align="right" />
-            <Th label="KST%" k="kst" sort={sort} onClick={toggleSort} align="right" />
-            <Th label="OpDuel" k="opduel" sort={sort} onClick={toggleSort} align="right" />
-            <Th label="2K W%" k="twok" sort={sort} onClick={toggleSort} align="right" />
-            <Th label="Rating" k="rating2" sort={sort} onClick={toggleSort} align="right" />
+            <Th label="7d Δ" k="delta" sort={sort} onClick={toggleSort} align="right" tooltip="Recent form: your last-7-days ACS minus your all-time ACS. Green = you're heating up." />
+            <Th label="Trade%" k="trade" sort={sort} onClick={toggleSort} align="right" tooltip="Of the rounds where you died, % where a teammate killed your killer within 5 seconds. Higher = team plays around you well." />
+            <Th label="Drag" k="drag" sort={sort} onClick={toggleSort} align="right" tooltip="How much our round-loss rate goes UP when you die vs when you stay alive (in percentage points, 'pp'). High = the team can't function without you alive." />
+            <Th label="Carry" k="carry" sort={sort} onClick={toggleSort} align="right" tooltip="How much our round-win rate goes UP in rounds where you got ≥1 kill vs rounds you got zero (in percentage points, 'pp'). High = your fragging directly wins rounds." />
+            <Th label="KST%" k="kst" sort={sort} onClick={toggleSort} align="right" tooltip="Kill, Survive, or Traded — % of rounds where you contributed (got a kill, stayed alive, OR your death was traded back by a teammate). Consistency metric. 70%+ is good." />
+            <Th label="OpDuel" k="opduel" sort={sort} onClick={toggleSort} align="right" tooltip="Opening-duel win rate. When the first kill of a round involved you (your kill OR your death), how often you came out on top." />
+            <Th label="2K W%" k="twok" sort={sort} onClick={toggleSort} align="right" tooltip="In rounds where you got 2+ kills, % of those rounds we actually won. High = your multi-kills convert into round wins." />
+            <Th label="Rating" k="rating2" sort={sort} onClick={toggleSort} align="right" tooltip="HLTV-style Rating 2.0 — weighted blend of kills/round, survival/round, and KST. 1.00 ≈ pro average. Above 1 = above average." />
           </tr>
         </thead>
         <tbody>
@@ -556,12 +556,14 @@ function Th({
   sort,
   onClick,
   align,
+  tooltip,
 }: {
   label: string
   k: SortKey
   sort: { key: SortKey; dir: SortDir }
   onClick: (k: SortKey) => void
   align: 'left' | 'center' | 'right'
+  tooltip?: string
 }) {
   const active = sort.key === k
   const arrow = active ? (sort.dir === 'asc' ? '↑' : '↓') : ''
@@ -575,9 +577,10 @@ function Th({
       <button
         type="button"
         onClick={() => onClick(k)}
+        title={tooltip}
         className={`inline-flex items-center gap-1 transition-colors ${
           active ? 'text-gold' : 'hover:text-fg'
-        }`}
+        } ${tooltip ? 'cursor-help underline decoration-dotted decoration-muted-2/50 underline-offset-4' : ''}`}
       >
         {label} {arrow && <span className="text-2xs">{arrow}</span>}
       </button>
