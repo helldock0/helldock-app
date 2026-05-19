@@ -702,7 +702,6 @@ function PlayerCell({
         body: JSON.stringify({
           match_player_id: matchPlayerId,
           target_player_id: targetId,
-          allow_reassign: !!currentPlayerId,
         }),
       })
       const body = await res.json()
@@ -710,10 +709,7 @@ function PlayerCell({
         setMsg(body?.error ?? `HTTP ${res.status}`)
         return
       }
-      const moved = body.reassigned_from ? ` (moved from ${body.reassigned_from})` : ''
-      setSuccess(
-        `Linked to ${body.target} (${body.linked} match${body.linked === 1 ? '' : 'es'})${moved}`
-      )
+      setSuccess(`Linked to ${body.target}`)
       setOpen(false)
       setTimeout(() => router.refresh(), 600)
     } finally {
