@@ -291,13 +291,10 @@ async function postMatchToDiscordMultipart(
 ): Promise<{ ok: boolean; status?: number; error?: string }> {
   try {
     const form = new FormData()
-    form.append(
-      'payload_json',
-      new Blob([JSON.stringify(buildMatchEmbed(summary))], {
-        type: 'application/json',
-      })
-    )
-    // Node 18+ Blob accepts Uint8Array; convert from Buffer.
+    // payload_json must be a plain string field, NOT a Blob — wrapping it in
+    // a Blob makes FormData send it as a file attachment, which Discord then
+    // shows as a separate "blob" file instead of parsing it as the embed.
+    form.append('payload_json', JSON.stringify(buildMatchEmbed(summary)))
     const pngBlob = new Blob([new Uint8Array(pngBuffer)], { type: 'image/png' })
     form.append('files[0]', pngBlob, 'heatmap.png')
 
@@ -477,7 +474,6 @@ export async function notifyDiscordForMatch(
     const heatmapPng = await renderMatchHeatmapPng({
       mapName: match.map_name,
       killEvents: killEvents as HeatmapKillEvent[],
-      matchIdHelldock: match.match_id_helldock,
     })
 
     const summary: DiscordMatchSummary = {
