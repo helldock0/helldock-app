@@ -36,6 +36,7 @@ export default async function MatchDetailPage({
     { data: matchPlayers },
     { data: oppPlayers },
     { data: teamMatchIds },
+    { data: rosterPlayers },
   ] = await Promise.all([
     supabase
       .from('rounds')
@@ -55,6 +56,13 @@ export default async function MatchDetailPage({
       .select('id')
       .eq('team_id', teamId)
       .is('deleted_at', null),
+    supabase
+      .from('players')
+      .select('id, display_name, roster_status')
+      .eq('team_id', teamId)
+      .eq('is_active', true)
+      .order('roster_status')
+      .order('display_name'),
   ])
 
   const allTeamMatchIds = (teamMatchIds ?? []).map((m) => m.id)
@@ -88,6 +96,11 @@ export default async function MatchDetailPage({
       oppPlayers={oppPlayers ?? []}
       initialEdit={searchParams.edit === '1'}
       roundWPs={wpForThisMatch}
+      rosterOptions={(rosterPlayers ?? []).map((p) => ({
+        id: p.id,
+        display_name: p.display_name,
+        roster_status: (p.roster_status ?? 'main') as 'main' | 'sub' | 'trial',
+      }))}
     />
   )
 }

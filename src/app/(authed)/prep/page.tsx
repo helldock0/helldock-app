@@ -91,7 +91,7 @@ export default async function PrepPage({
       .in('match_id', matchIds),
     supabase
       .from('match_players')
-      .select('match_id, player_id, agent, acs, player:players(display_name)')
+      .select('match_id, player_id, agent, acs, player:players(display_name, roster_status)')
       .in('match_id', matchIds),
     supabase
       .from('opp_players')
@@ -100,13 +100,14 @@ export default async function PrepPage({
   ])
 
   const rounds: DashRound[] = roundsRes.data ?? []
-  const mpRaw = (mpRes.data ?? []) as unknown as {
+  // Trials are excluded from team aggregates.
+  const mpRaw = ((mpRes.data ?? []) as unknown as {
     match_id: string
     player_id: string
     agent: string | null
     acs: number | null
-    player: { display_name: string } | null
-  }[]
+    player: { display_name: string; roster_status?: string } | null
+  }[]).filter((p) => p.player?.roster_status !== 'trial')
   const matchPlayers: DossierMatchPlayer[] = mpRaw.map((mp) => ({
     match_id: mp.match_id,
     player_id: mp.player_id,

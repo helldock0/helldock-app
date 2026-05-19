@@ -104,7 +104,7 @@ export default async function AnalyticsPage({
       .in('match_id', matchIds),
     supabase
       .from('match_players')
-      .select('match_id, player_id, puuid, k, d, acs, plus_minus, agent, fk, fd, plants, defuses, clutches, clutch_1v2plus, econ, hs, bs, ls, damage_made, damage_received, adr, ability_c, ability_q, ability_e, ability_x, rounds_afk, friendly_fire_outgoing, friendly_fire_incoming, two_k, three_k, four_k, aces, player:players(display_name)')
+      .select('match_id, player_id, puuid, k, d, acs, plus_minus, agent, fk, fd, plants, defuses, clutches, clutch_1v2plus, econ, hs, bs, ls, damage_made, damage_received, adr, ability_c, ability_q, ability_e, ability_x, rounds_afk, friendly_fire_outgoing, friendly_fire_incoming, two_k, three_k, four_k, aces, player:players(display_name, roster_status)')
       .in('match_id', matchIds),
     supabase
       .from('opp_players')
@@ -117,7 +117,10 @@ export default async function AnalyticsPage({
   ])
 
   const rounds: DashRound[] = roundsRes.data ?? []
-  const matchPlayersRaw = (mpRes.data ?? []) as unknown as FullMatchPlayer[]
+  // Trials are excluded from team aggregates. Mains/subs/orphans pass through.
+  const matchPlayersRaw = ((mpRes.data ?? []) as unknown as Array<
+    FullMatchPlayer & { player?: { roster_status?: string } | null }
+  >).filter((p) => p.player?.roster_status !== 'trial') as FullMatchPlayer[]
   const oppPlayers = (oppRes.data ?? []) as {
     match_id: string
     agent: string | null

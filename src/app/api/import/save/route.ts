@@ -29,18 +29,24 @@ export async function POST(req: Request) {
   const teamId = teamRow?.id
   if (!teamId) return NextResponse.json({ error: 'Team not found in DB' }, { status: 404 })
 
-  // Get player lookup for our team: riot_key → player UUID
-  const { data: teamPlayers } = await supabase
-    .from('players')
-    .select('id, riot_name, riot_tag')
-    .eq('team_id', teamId)
+  // Player resolution: build PUUID + riot_id lookups across all accounts (including alts)
+  // owned by this team's players. PUUID is preferred — stable even when Riot ID changes.
+  const { data: accountRows } = await supabase
+    .from('player_accounts')
+    .select('player_id, riot_name, riot_tag, puuid, players!inner(team_id)')
+    .eq('players.team_id', teamId)
 
-  const playerLookup = new Map<string, string>(
-    (teamPlayers ?? []).map((p: { id: string; riot_name: string; riot_tag: string }) => [
-      `${p.riot_name}#${p.riot_tag}`,
-      p.id,
-    ])
-  )
+  const byPuuid = new Map<string, string>()
+  const byRiotKey = new Map<string, string>()
+  for (const a of (accountRows ?? []) as Array<{
+    player_id: string
+    riot_name: string
+    riot_tag: string
+    puuid: string | null
+  }>) {
+    byRiotKey.set(`${a.riot_name}#${a.riot_tag}`, a.player_id)
+    if (a.puuid) byPuuid.set(a.puuid, a.player_id)
+  }
 
   // Get current max match ID
   const { data: maxRow } = await supabase
@@ -110,15 +116,21 @@ export async function POST(req: Request) {
       )
     }
 
-    // Insert our players (with player_id lookup)
+    // Insert our players. riot_name/riot_tag are now persisted so that orphaned rows
+    // (player_id IS NULL) can still be identified and later linked to a player via the
+    // alt-account UI in the match detail page.
     if (xf.ourPlayers.length) {
       await supabase.from('match_players').insert(
         xf.ourPlayers.map((p) => {
           const { riot_key, ...rest } = p
+          const playerId =
+            (p.puuid ? byPuuid.get(p.puuid) : undefined) ??
+            byRiotKey.get(riot_key) ??
+            null
           return {
             ...rest,
             match_id: matchUUID,
-            player_id: playerLookup.get(riot_key) ?? null,
+            player_id: playerId,
           }
         })
       )

@@ -161,14 +161,18 @@ export default async function HomePage() {
       ? supabase
           .from('match_players')
           .select(
-            'match_id, player_id, acs, rounds_afk, friendly_fire_outgoing, player:players(display_name)'
+            'match_id, player_id, acs, rounds_afk, friendly_fire_outgoing, player:players(display_name, roster_status)'
           )
           .in('match_id', matchIds)
       : Promise.resolve({ data: [] }),
   ])
 
   const rounds: DashRound[] = roundsRes.data ?? []
-  const matchPlayers = (mpRes.data ?? []) as unknown as DashMatchPlayer[]
+  // Trials don't count toward team aggregates. Orphans (no player linked) and
+  // main/sub players are kept.
+  const matchPlayers = ((mpRes.data ?? []) as unknown as Array<
+    DashMatchPlayer & { player?: { roster_status?: string } | null }
+  >).filter((p) => p.player?.roster_status !== 'trial') as DashMatchPlayer[]
 
   if (matches.length === 0) {
     return (

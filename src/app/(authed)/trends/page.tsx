@@ -63,11 +63,14 @@ export default async function TrendsPage() {
       .in('match_id', matchIds),
     supabase
       .from('match_players')
-      .select('match_id, player_id, acs, player:players(display_name)')
+      .select('match_id, player_id, acs, player:players(display_name, roster_status)')
       .in('match_id', matchIds),
   ])
   const rounds: DashRound[] = roundsRes.data ?? []
-  const matchPlayers = (mpRes.data ?? []) as unknown as TrendsMatchPlayer[]
+  // Trials are excluded from team aggregates.
+  const matchPlayers = ((mpRes.data ?? []) as unknown as Array<
+    TrendsMatchPlayer & { player?: { roster_status?: string } | null }
+  >).filter((p) => p.player?.roster_status !== 'trial') as TrendsMatchPlayer[]
 
   const rolling = computeRollingWinRate(matches, 30)
   const sideWeekly = computeWeeklySideBias(matches, rounds, 12)

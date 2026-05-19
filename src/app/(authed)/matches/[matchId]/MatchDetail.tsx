@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import ScoreProgressionChart from '@/components/charts/ScoreProgressionChart'
 import EconomyCurveChart from '@/components/charts/EconomyCurveChart'
 import WinProbCurve from '@/components/charts/WinProbCurve'
@@ -60,6 +61,10 @@ type Round = {
 type MatchPlayer = {
   id: string
   player: { display_name: string } | null
+  player_id: string | null
+  riot_name: string | null
+  riot_tag: string | null
+  puuid: string | null
   agent: string | null
   role: string | null
   k: number | null
@@ -74,6 +79,12 @@ type MatchPlayer = {
   plus_minus: number | null
   rating: number | null
   notes: string | null
+}
+
+export type RosterOption = {
+  id: string
+  display_name: string
+  roster_status: 'main' | 'sub' | 'trial'
 }
 
 type OppPlayer = {
@@ -648,12 +659,109 @@ function RoundsTab({ rounds, editMode, onRoundChange, roundWPs = [] }: {
   )
 }
 
+// ── Alt-account link cell (unattributed match_players row) ─────────────────
+
+function LinkPlayerCell({
+  matchPlayerId,
+  riotName,
+  riotTag,
+  hasPuuid,
+  rosterOptions,
+}: {
+  matchPlayerId: string
+  riotName: string | null
+  riotTag: string | null
+  hasPuuid: boolean
+  rosterOptions: RosterOption[]
+}) {
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+  const [working, setWorking] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+
+  const canLink = !!(riotName && riotTag) || hasPuuid
+  const displayId =
+    riotName && riotTag ? `${riotName}#${riotTag}` : hasPuuid ? '(unknown — puuid only)' : '(no id)'
+
+  async function link(targetId: string) {
+    setWorking(true)
+    setMsg(null)
+    try {
+      const res = await fetch('/api/roster/link-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ match_player_id: matchPlayerId, target_player_id: targetId }),
+      })
+      const body = await res.json()
+      if (!res.ok) {
+        setMsg(body?.error ?? `HTTP ${res.status}`)
+        return
+      }
+      setSuccess(`Linked to ${body.target} (${body.linked} match${body.linked === 1 ? '' : 'es'})`)
+      setOpen(false)
+      setTimeout(() => router.refresh(), 600)
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  if (success) {
+    return <span className="text-xs text-green-400">{success}</span>
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="font-mono text-xs text-[#9CA3AF]">{displayId}</span>
+      {canLink ? (
+        <>
+          <div className="relative inline-block">
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              disabled={working}
+              className="text-2xs uppercase tracking-wider px-1.5 py-0.5 rounded border border-cyan-400/40 text-cyan-400 bg-cyan-400/10 hover:bg-cyan-400/20 disabled:opacity-50"
+            >
+              {working ? 'Linking…' : 'Link ▾'}
+            </button>
+            {open && (
+              <div className="absolute z-20 mt-1 w-56 max-h-60 overflow-y-auto rounded-md border border-line-strong/60 bg-surface shadow-lg">
+                {rosterOptions.length === 0 ? (
+                  <div className="px-3 py-2 text-xs text-muted-2">No roster players found.</div>
+                ) : (
+                  rosterOptions.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => link(opt.id)}
+                      className="w-full text-left px-3 py-1.5 text-sm text-fg hover:bg-surface-2 flex items-center justify-between"
+                    >
+                      <span>{opt.display_name}</span>
+                      <span className="text-2xs uppercase tracking-wider text-muted-2">
+                        {opt.roster_status}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+          {msg && <span className="text-2xs text-[#DC143C]">{msg}</span>}
+        </>
+      ) : (
+        <span className="text-2xs text-muted-2 italic">re-import to backfill</span>
+      )}
+    </div>
+  )
+}
+
 // ── Players Tab ────────────────────────────────────────────────────────────
 
-function PlayersTab({ players, editMode, onPlayerChange }: {
+function PlayersTab({ players, editMode, onPlayerChange, rosterOptions }: {
   players: MatchPlayer[]
   editMode: boolean
   onPlayerChange: (id: string, field: string, value: unknown) => void
+  rosterOptions: RosterOption[]
 }) {
   if (players.length === 0) return <EmptyState label="player stats" />
 
@@ -670,7 +778,17 @@ function PlayersTab({ players, editMode, onPlayerChange }: {
         <tbody>
           {players.map((p, i) => (
             <tr key={p.id} className={`${i !== players.length - 1 ? 'border-b border-[#3C3C44]' : ''} hover:bg-[#35353C]`}>
-              <td className="px-4 py-2 font-medium text-[#FFD700]">{p.player?.display_name ?? '—'}</td>
+              <td className="px-4 py-2 font-medium text-[#FFD700]">
+                {p.player?.display_name ?? (
+                  <LinkPlayerCell
+                    matchPlayerId={p.id}
+                    riotName={p.riot_name}
+                    riotTag={p.riot_tag}
+                    hasPuuid={!!p.puuid}
+                    rosterOptions={rosterOptions}
+                  />
+                )}
+              </td>
               <td className="px-4 py-2">
                 {editMode ? <SI value={p.agent} onChange={v => onPlayerChange(p.id, 'agent', str(v))} /> : fmt(p.agent)}
               </td>
@@ -799,6 +917,7 @@ export default function MatchDetail({
   oppPlayers: initialOppPlayers,
   initialEdit = false,
   roundWPs = [],
+  rosterOptions = [],
 }: {
   match: Match
   rounds: Round[]
@@ -806,6 +925,7 @@ export default function MatchDetail({
   oppPlayers: OppPlayer[]
   initialEdit?: boolean
   roundWPs?: RoundWP[]
+  rosterOptions?: RosterOption[]
 }) {
   const [tab, setTab] = useState<Tab>('Overview')
   const [editMode, setEditMode] = useState(initialEdit)
@@ -1011,7 +1131,7 @@ export default function MatchDetail({
         <RoundsTab rounds={localRounds} editMode={editMode} onRoundChange={handleRoundChange} roundWPs={roundWPs} />
       )}
       {tab === 'Players' && (
-        <PlayersTab players={localMatchPlayers} editMode={editMode} onPlayerChange={handleMpChange} />
+        <PlayersTab players={localMatchPlayers} editMode={editMode} onPlayerChange={handleMpChange} rosterOptions={rosterOptions} />
       )}
       {tab === 'Opp Players' && (
         <OppPlayersTab players={localOppPlayers} editMode={editMode} onOppPlayerChange={handleOppChange} />

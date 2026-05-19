@@ -11,6 +11,7 @@ const LINKS = [
   { href: '/analytics', label: 'Analytics', match: (p: string) => p.startsWith('/analytics') },
   { href: '/trends', label: 'Trends', match: (p: string) => p.startsWith('/trends') },
   { href: '/import', label: 'Import', match: (p: string) => p.startsWith('/import') },
+  { href: '/roster', label: 'Roster', match: (p: string) => p.startsWith('/roster') },
 ] as const
 
 export default function AppNav({ currentTeamSlug }: { currentTeamSlug: string | null }) {

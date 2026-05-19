@@ -51,18 +51,25 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: xf.error }, { status: 422 })
   }
 
-  // Player UUID lookup for our team
-  const { data: teamPlayers } = await supabase
-    .from('players')
-    .select('id, riot_name, riot_tag')
-    .eq('team_id', match.team_id)
+  // Player UUID lookup across all linked accounts (including alts) so post-link
+  // rehydrations don't drop the alt's stats. PUUID is preferred — stable across
+  // Riot ID renames.
+  const { data: accountRows } = await supabase
+    .from('player_accounts')
+    .select('player_id, riot_name, riot_tag, puuid, players!inner(team_id)')
+    .eq('players.team_id', match.team_id)
 
-  const playerLookup = new Map<string, string>(
-    (teamPlayers ?? []).map((p: { id: string; riot_name: string; riot_tag: string }) => [
-      `${p.riot_name}#${p.riot_tag}`,
-      p.id,
-    ])
-  )
+  const byPuuid = new Map<string, string>()
+  const byRiotKey = new Map<string, string>()
+  for (const a of (accountRows ?? []) as Array<{
+    player_id: string
+    riot_name: string
+    riot_tag: string
+    puuid: string | null
+  }>) {
+    byRiotKey.set(`${a.riot_name}#${a.riot_tag}`, a.player_id)
+    if (a.puuid) byPuuid.set(a.puuid, a.player_id)
+  }
 
   // Patch rounds by (match_id, round_num)
   let roundsPatched = 0
@@ -114,12 +121,15 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   // (aim_score, decision_score, comms_score, notes, attendance).
   let mpPatched = 0
   for (const p of xf.ourPlayers) {
-    const playerId = playerLookup.get(p.riot_key) ?? null
+    const playerId =
+      (p.puuid ? byPuuid.get(p.puuid) : undefined) ?? byRiotKey.get(p.riot_key) ?? null
     if (!playerId) continue
     const { error } = await supabase
       .from('match_players')
       .update({
         puuid: p.puuid,
+        riot_name: p.riot_name,
+        riot_tag: p.riot_tag,
         agent: p.agent,
         role: p.role,
         k: p.k,
