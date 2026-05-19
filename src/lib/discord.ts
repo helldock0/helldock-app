@@ -16,6 +16,7 @@ import {
   type StreakForMatch,
   type MapHistorySnapshot,
   type PlayerDelta,
+  type OppScoreboardLine,
   type RoundForBreakdown,
 } from '@/lib/discord-compute'
 import {
@@ -40,7 +41,10 @@ export type DiscordMatchSummary = {
   // ── comparisons ──
   streak: StreakForMatch | null
   mapHistory: MapHistorySnapshot | null
+
+  // ── scoreboards ──
   playerDeltas: PlayerDelta[] | null
+  oppScoreboard: OppScoreboardLine[] | null
 
   // ── heatmap (set only when image is attached) ──
   heatmapPng: Buffer | null
@@ -133,11 +137,18 @@ export function buildMatchEmbed(s: DiscordMatchSummary) {
     })
   }
 
-  // Players — code block for monospace alignment.
+  // Scoreboards — separate code blocks for monospace alignment.
   if (s.playerDeltas && s.playerDeltas.length) {
     fields.push({
-      name: 'Players (ACS vs avg)',
-      value: '```\n' + formatPlayerBlock(s.playerDeltas) + '\n```',
+      name: 'Our team (ACS vs avg)',
+      value: '```\n' + formatScoreboardBlock(s.playerDeltas, true) + '\n```',
+      inline: false,
+    })
+  }
+  if (s.oppScoreboard && s.oppScoreboard.length) {
+    fields.push({
+      name: 'Them',
+      value: '```\n' + formatScoreboardBlock(s.oppScoreboard, false) + '\n```',
       inline: false,
     })
   }
@@ -188,21 +199,44 @@ function buildFormLine(
   return parts.length ? `Form: ${parts.join(' · ')}` : null
 }
 
-function formatPlayerBlock(deltas: PlayerDelta[]): string {
-  const maxName = Math.max(...deltas.map((d) => d.name.length))
-  return deltas
-    .map((d) => {
-      const name = d.name.padEnd(maxName)
-      const acs = d.acs != null ? String(d.acs).padStart(4) : '   —'
-      let delta = '      '
-      if (d.acsDelta != null) {
-        const sign = d.acsDelta > 0 ? '+' : d.acsDelta < 0 ? '−' : '±'
-        const abs = Math.abs(d.acsDelta)
-        delta = `  (${sign}${String(abs).padStart(2)})`
+type ScoreboardLine = {
+  name: string
+  k: number | null
+  a: number | null
+  d: number | null
+  acs: number | null
+  acsDelta?: number | null
+}
+
+function formatScoreboardBlock(rows: ScoreboardLine[], withDelta: boolean): string {
+  const maxName = Math.max(...rows.map((r) => r.name.length))
+  return rows
+    .map((r) => {
+      const name = r.name.padEnd(maxName)
+      const kad = formatKad(r.k, r.a, r.d).padEnd(8)
+      const acs = r.acs != null ? String(Math.round(r.acs)).padStart(4) : '   —'
+      let delta = ''
+      if (withDelta) {
+        if (r.acsDelta != null) {
+          const sign = r.acsDelta > 0 ? '+' : r.acsDelta < 0 ? '−' : '±'
+          const abs = Math.abs(r.acsDelta)
+          delta = `  (${sign}${String(abs).padStart(2)})`
+        } else {
+          delta = '       '
+        }
       }
-      return `${name}  ${acs}${delta}`
+      return `${name}  ${kad}${acs}${delta}`
     })
     .join('\n')
+}
+
+function formatKad(
+  k: number | null,
+  a: number | null,
+  d: number | null
+): string {
+  const fmt = (n: number | null) => (n == null ? '—' : String(n))
+  return `${fmt(k)}/${fmt(a)}/${fmt(d)}`
 }
 
 // ── Webhook posters ──────────────────────────────────────────────────────────
@@ -312,9 +346,18 @@ export async function notifyDiscordForMatch(
     type MpRow = {
       player_id: string | null
       k: number | null
+      a: number | null
       d: number | null
       acs: number | null
       player: { display_name: string } | null
+    }
+    type OppRow = {
+      opp_player_name: string | null
+      riot_id_full: string | null
+      k: number | null
+      a: number | null
+      d: number | null
+      acs: number | null
     }
     type RoundRow = {
       round_num: number | null
@@ -335,10 +378,10 @@ export async function notifyDiscordForMatch(
       killer_is_ours: boolean | null
     }
 
-    const [mpRes, rdRes, keRes] = await Promise.all([
+    const [mpRes, rdRes, keRes, oppRes] = await Promise.all([
       supabase
         .from('match_players')
-        .select('player_id, k, d, acs, player:players(display_name)')
+        .select('player_id, k, a, d, acs, player:players(display_name)')
         .eq('match_id', matchUUID),
       supabase
         .from('rounds')
@@ -350,17 +393,38 @@ export async function notifyDiscordForMatch(
         .from('kill_events')
         .select('killer_x, killer_y, victim_x, victim_y, killer_is_ours')
         .eq('match_id', matchUUID),
+      supabase
+        .from('opp_players')
+        .select('opp_player_name, riot_id_full, k, a, d, acs')
+        .eq('match_id', matchUUID),
     ])
 
     const matchPlayers = (mpRes.data ?? []) as MpRow[]
     const rounds = (rdRes.data ?? []) as RoundRow[]
     const killEvents = (keRes.data ?? []) as KillRow[]
+    const oppRows = (oppRes.data ?? []) as OppRow[]
+
+    // Opp scoreboard — keep rows that have at least one of k/d/acs populated
+    // so manual matches with empty opp rows don't render an empty block.
+    const oppScoreboard: OppScoreboardLine[] = oppRows
+      .filter((o) => o.k != null || o.d != null || o.acs != null)
+      .map((o) => ({
+        name: o.opp_player_name ?? o.riot_id_full ?? '???',
+        k: o.k,
+        a: o.a,
+        d: o.d,
+        acs: o.acs,
+      }))
+      .sort((a, b) => (b.acs ?? -1) - (a.acs ?? -1))
 
     // Comparisons — fan out in parallel.
     const matchPlayersForDelta = matchPlayers
       .filter((mp) => mp.player?.display_name)
       .map((mp) => ({
         player_id: mp.player_id,
+        k: mp.k,
+        a: mp.a,
+        d: mp.d,
         acs: mp.acs,
         display_name: mp.player!.display_name,
       }))
@@ -394,6 +458,7 @@ export async function notifyDiscordForMatch(
       streak,
       mapHistory,
       playerDeltas: playerDeltas.length ? playerDeltas : null,
+      oppScoreboard: oppScoreboard.length ? oppScoreboard : null,
       heatmapPng,
     }
 

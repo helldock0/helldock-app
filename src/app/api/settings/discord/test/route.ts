@@ -56,11 +56,18 @@ export async function POST(req: Request) {
       windowLabel: 'last 7 plays',
     },
     playerDeltas: [
-      { name: 'MAK', acs: 287, acsDelta: 34 },
-      { name: 'Trippie', acs: 251, acsDelta: -8 },
-      { name: 'Spike', acs: 234, acsDelta: 12 },
-      { name: 'Cypher', acs: 198, acsDelta: -5 },
-      { name: 'Reyna', acs: 152, acsDelta: -41 },
+      { name: 'MAK', k: 24, a: 5, d: 14, acs: 287, acsDelta: 34 },
+      { name: 'Trippie', k: 19, a: 7, d: 12, acs: 251, acsDelta: -8 },
+      { name: 'Spike', k: 17, a: 8, d: 15, acs: 234, acsDelta: 12 },
+      { name: 'Cypher', k: 14, a: 9, d: 16, acs: 198, acsDelta: -5 },
+      { name: 'Reyna', k: 11, a: 6, d: 17, acs: 152, acsDelta: -41 },
+    ],
+    oppScoreboard: [
+      { name: 'Player1', k: 18, a: 3, d: 14, acs: 240 },
+      { name: 'Player2', k: 16, a: 5, d: 15, acs: 220 },
+      { name: 'Player3', k: 14, a: 8, d: 12, acs: 205 },
+      { name: 'Player4', k: 12, a: 4, d: 16, acs: 178 },
+      { name: 'Player5', k: 9, a: 7, d: 17, acs: 145 },
     ],
     heatmapPng: null,
   })

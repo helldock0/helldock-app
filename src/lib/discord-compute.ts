@@ -328,14 +328,29 @@ export async function computeMapHistory(
 
 export type PlayerDelta = {
   name: string
+  k: number | null
+  a: number | null
+  d: number | null
   acs: number | null
   acsDelta: number | null
 }
 
 export type MatchPlayerForDelta = {
   player_id: string | null
+  k: number | null
+  a: number | null
+  d: number | null
   acs: number | null
   display_name: string
+}
+
+/** One line of the opp-team scoreboard (no ACS delta tracked for opp roster). */
+export type OppScoreboardLine = {
+  name: string
+  k: number | null
+  a: number | null
+  d: number | null
+  acs: number | null
 }
 
 const PLAYER_AVG_WINDOW = 10
@@ -358,8 +373,15 @@ export async function computePlayerAcsDelta(
 
   const deltas = await Promise.all(
     sorted.map(async (mp): Promise<PlayerDelta> => {
+      const base = {
+        name: mp.display_name,
+        k: mp.k,
+        a: mp.a,
+        d: mp.d,
+        acs: mp.acs,
+      }
       if (!mp.player_id || mp.acs == null) {
-        return { name: mp.display_name, acs: mp.acs, acsDelta: null }
+        return { ...base, acsDelta: null }
       }
       try {
         // Join through matches to scope to team + exclude this match. We pull
@@ -373,25 +395,19 @@ export async function computePlayerAcsDelta(
           .neq('match_id', excludeMatchUUID)
           .order('match(match_date)', { ascending: false })
           .limit(PLAYER_AVG_WINDOW * 2)
-        if (error || !data) {
-          return { name: mp.display_name, acs: mp.acs, acsDelta: null }
-        }
+        if (error || !data) return { ...base, acsDelta: null }
         const acsValues = data
           .map((r: { acs: number | null }) => r.acs)
           .filter((v: number | null): v is number => v != null)
           .slice(0, PLAYER_AVG_WINDOW)
         if (acsValues.length < MIN_PRIOR_FOR_DELTA) {
-          return { name: mp.display_name, acs: mp.acs, acsDelta: null }
+          return { ...base, acsDelta: null }
         }
         const avg =
           acsValues.reduce((s: number, v: number) => s + v, 0) / acsValues.length
-        return {
-          name: mp.display_name,
-          acs: mp.acs,
-          acsDelta: Math.round(mp.acs - avg),
-        }
+        return { ...base, acsDelta: Math.round(mp.acs - avg) }
       } catch {
-        return { name: mp.display_name, acs: mp.acs, acsDelta: null }
+        return { ...base, acsDelta: null }
       }
     })
   )
