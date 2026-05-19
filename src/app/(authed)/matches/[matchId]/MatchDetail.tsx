@@ -659,16 +659,20 @@ function RoundsTab({ rounds, editMode, onRoundChange, roundWPs = [] }: {
   )
 }
 
-// ── Alt-account link cell (unattributed match_players row) ─────────────────
+// ── Player cell with always-available link / re-link control ───────────────
 
-function LinkPlayerCell({
+function PlayerCell({
   matchPlayerId,
+  currentPlayerId,
+  currentPlayerName,
   riotName,
   riotTag,
   hasPuuid,
   rosterOptions,
 }: {
   matchPlayerId: string
+  currentPlayerId: string | null
+  currentPlayerName: string | null
   riotName: string | null
   riotTag: string | null
   hasPuuid: boolean
@@ -681,24 +685,35 @@ function LinkPlayerCell({
   const [success, setSuccess] = useState<string | null>(null)
 
   const canLink = !!(riotName && riotTag) || hasPuuid
-  const displayId =
-    riotName && riotTag ? `${riotName}#${riotTag}` : hasPuuid ? '(unknown — puuid only)' : '(no id)'
+  const riotId =
+    riotName && riotTag ? `${riotName}#${riotTag}` : hasPuuid ? '(puuid only)' : '(no id)'
 
   async function link(targetId: string) {
+    if (targetId === currentPlayerId) {
+      setOpen(false)
+      return
+    }
     setWorking(true)
     setMsg(null)
     try {
       const res = await fetch('/api/roster/link-account', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ match_player_id: matchPlayerId, target_player_id: targetId }),
+        body: JSON.stringify({
+          match_player_id: matchPlayerId,
+          target_player_id: targetId,
+          allow_reassign: !!currentPlayerId,
+        }),
       })
       const body = await res.json()
       if (!res.ok) {
         setMsg(body?.error ?? `HTTP ${res.status}`)
         return
       }
-      setSuccess(`Linked to ${body.target} (${body.linked} match${body.linked === 1 ? '' : 'es'})`)
+      const moved = body.reassigned_from ? ` (moved from ${body.reassigned_from})` : ''
+      setSuccess(
+        `Linked to ${body.target} (${body.linked} match${body.linked === 1 ? '' : 'es'})${moved}`
+      )
       setOpen(false)
       setTimeout(() => router.refresh(), 600)
     } finally {
@@ -710,45 +725,71 @@ function LinkPlayerCell({
     return <span className="text-xs text-green-400">{success}</span>
   }
 
+  const primaryLabel = currentPlayerName ?? riotId
+  const secondaryLabel = currentPlayerName && riotName && riotTag ? `${riotName}#${riotTag}` : null
+
   return (
-    <div className="flex flex-col gap-1">
-      <span className="font-mono text-xs text-[#9CA3AF]">{displayId}</span>
-      {canLink ? (
-        <>
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-1.5">
+        <span className={currentPlayerName ? 'text-[#FFD700]' : 'font-mono text-xs text-[#9CA3AF]'}>
+          {primaryLabel}
+        </span>
+        {canLink && (
           <div className="relative inline-block">
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
               disabled={working}
-              className="text-2xs uppercase tracking-wider px-1.5 py-0.5 rounded border border-cyan-400/40 text-cyan-400 bg-cyan-400/10 hover:bg-cyan-400/20 disabled:opacity-50"
+              title={currentPlayerName ? 're-link to a different player' : 'link to a player'}
+              className={
+                currentPlayerName
+                  ? 'text-2xs px-1 rounded text-muted-2 hover:text-cyan-400'
+                  : 'text-2xs uppercase tracking-wider px-1.5 py-0.5 rounded border border-cyan-400/40 text-cyan-400 bg-cyan-400/10 hover:bg-cyan-400/20 disabled:opacity-50'
+              }
             >
-              {working ? 'Linking…' : 'Link ▾'}
+              {working ? '…' : currentPlayerName ? '↺' : 'Link ▾'}
             </button>
             {open && (
               <div className="absolute z-20 mt-1 w-56 max-h-60 overflow-y-auto rounded-md border border-line-strong/60 bg-surface shadow-lg">
                 {rosterOptions.length === 0 ? (
                   <div className="px-3 py-2 text-xs text-muted-2">No roster players found.</div>
                 ) : (
-                  rosterOptions.map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => link(opt.id)}
-                      className="w-full text-left px-3 py-1.5 text-sm text-fg hover:bg-surface-2 flex items-center justify-between"
-                    >
-                      <span>{opt.display_name}</span>
-                      <span className="text-2xs uppercase tracking-wider text-muted-2">
-                        {opt.roster_status}
-                      </span>
-                    </button>
-                  ))
+                  rosterOptions.map((opt) => {
+                    const isCurrent = opt.id === currentPlayerId
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => link(opt.id)}
+                        disabled={isCurrent}
+                        className={
+                          'w-full text-left px-3 py-1.5 text-sm flex items-center justify-between ' +
+                          (isCurrent
+                            ? 'text-gold cursor-default bg-gold/10'
+                            : 'text-fg hover:bg-surface-2')
+                        }
+                      >
+                        <span className="flex items-center gap-1.5">
+                          {isCurrent && <span className="text-2xs">✓</span>}
+                          {opt.display_name}
+                        </span>
+                        <span className="text-2xs uppercase tracking-wider text-muted-2">
+                          {opt.roster_status}
+                        </span>
+                      </button>
+                    )
+                  })
                 )}
               </div>
             )}
           </div>
-          {msg && <span className="text-2xs text-[#DC143C]">{msg}</span>}
-        </>
-      ) : (
+        )}
+      </div>
+      {secondaryLabel && (
+        <span className="font-mono text-2xs text-muted-2">{secondaryLabel}</span>
+      )}
+      {msg && <span className="text-2xs text-[#DC143C]">{msg}</span>}
+      {!canLink && !currentPlayerName && (
         <span className="text-2xs text-muted-2 italic">re-import to backfill</span>
       )}
     </div>
@@ -778,16 +819,16 @@ function PlayersTab({ players, editMode, onPlayerChange, rosterOptions }: {
         <tbody>
           {players.map((p, i) => (
             <tr key={p.id} className={`${i !== players.length - 1 ? 'border-b border-[#3C3C44]' : ''} hover:bg-[#35353C]`}>
-              <td className="px-4 py-2 font-medium text-[#FFD700]">
-                {p.player?.display_name ?? (
-                  <LinkPlayerCell
-                    matchPlayerId={p.id}
-                    riotName={p.riot_name}
-                    riotTag={p.riot_tag}
-                    hasPuuid={!!p.puuid}
-                    rosterOptions={rosterOptions}
-                  />
-                )}
+              <td className="px-4 py-2 font-medium">
+                <PlayerCell
+                  matchPlayerId={p.id}
+                  currentPlayerId={p.player_id}
+                  currentPlayerName={p.player?.display_name ?? null}
+                  riotName={p.riot_name}
+                  riotTag={p.riot_tag}
+                  hasPuuid={!!p.puuid}
+                  rosterOptions={rosterOptions}
+                />
               </td>
               <td className="px-4 py-2">
                 {editMode ? <SI value={p.agent} onChange={v => onPlayerChange(p.id, 'agent', str(v))} /> : fmt(p.agent)}
