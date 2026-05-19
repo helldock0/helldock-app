@@ -1,9 +1,18 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MAP_RADARS, gameCoordToRadar } from '@/lib/valorant-maps'
 import type { Map } from '@/lib/valorant'
-import type { KillEventRow } from '@/app/api/kill-events/route'
+import type { KillEventRow, RosterEntry } from '@/app/api/kill-events/route'
+import { DensityLayers, type DensityLayer } from '@/lib/density-svg'
+
+export type MapHeatmapView = 'auto' | 'dots' | 'density'
+export type MapHeatmapWindow = 'all' | '30d' | '7d'
+
+const VIEW_STORAGE_KEY = 'helldock.mapHeatmap.view'
+// Above this point count, density renders better than dots — overlap blurs into soup.
+const DENSITY_AUTO_THRESHOLD = 50
+const DAY_MS = 24 * 60 * 60 * 1000
 
 type DotKind =
   | 'our_kill'
@@ -54,22 +63,94 @@ const KIND_COLOR: Record<DotKind, string> = {
 export default function MapHeatmap({
   mapName,
   events,
+  roster,
   mode,
   side,
 }: {
   mapName: Map
   events: KillEventRow[]
+  /** Team roster for the player filter dropdown. Pass empty array to hide it. */
+  roster?: RosterEntry[]
   mode: MapHeatmapMode
   side: MapHeatmapSide
 }) {
   const radar = MAP_RADARS[mapName]
+
+  // Part 2 filters — all client-side over the already-loaded events.
+  const [playerFilter, setPlayerFilter] = useState<string>('all') // 'all' or puuid
+  const [opponentFilter, setOpponentFilter] = useState<string>('all') // 'all' or opponent_name
+  const [dateWindow, setDateWindow] = useState<MapHeatmapWindow>('all')
+
+  // Distinct opponent_names that appear in the raw events — populates the dropdown.
+  const opponentOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const e of events) if (e.opponent_name) set.add(e.opponent_name)
+    return Array.from(set).sort()
+  }, [events])
+
+  // Apply filters BEFORE dot generation. The mode/side filters in the dots useMemo
+  // still apply on top of these.
+  const filteredEvents = useMemo(() => {
+    if (playerFilter === 'all' && opponentFilter === 'all' && dateWindow === 'all') {
+      return events
+    }
+    const cutoff =
+      dateWindow === '7d'
+        ? Date.now() - 7 * DAY_MS
+        : dateWindow === '30d'
+        ? Date.now() - 30 * DAY_MS
+        : 0
+    return events.filter((e) => {
+      if (playerFilter !== 'all') {
+        // Match if this player was either the killer or the victim.
+        if (e.killer_puuid !== playerFilter && e.victim_puuid !== playerFilter) {
+          return false
+        }
+      }
+      if (opponentFilter !== 'all' && e.opponent_name !== opponentFilter) return false
+      if (cutoff > 0) {
+        if (!e.match_date) return false
+        if (new Date(e.match_date).getTime() < cutoff) return false
+      }
+      return true
+    })
+  }, [events, playerFilter, opponentFilter, dateWindow])
+
+  const filtersActive =
+    playerFilter !== 'all' || opponentFilter !== 'all' || dateWindow !== 'all'
+  function clearFilters() {
+    setPlayerFilter('all')
+    setOpponentFilter('all')
+    setDateWindow('all')
+  }
+
+  // View toggle (auto / dots / density). Persisted in localStorage so the
+  // choice survives modal re-opens.
+  const [view, setView] = useState<MapHeatmapView>('auto')
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const stored = window.localStorage.getItem(VIEW_STORAGE_KEY) as MapHeatmapView | null
+      if (stored === 'auto' || stored === 'dots' || stored === 'density') setView(stored)
+    } catch {
+      // localStorage blocked — stay on default 'auto'
+    }
+  }, [])
+  function changeView(next: MapHeatmapView) {
+    setView(next)
+    try {
+      window.localStorage.setItem(VIEW_STORAGE_KEY, next)
+    } catch {
+      // ignore — preference just won't persist
+    }
+  }
 
   const dots: Dot[] = useMemo(() => {
     if (!radar) return []
 
     // Recency: bucket each event by match date so the most recent matches plot brightest.
     // We use the per-match date max as t=now, oldest as t=0.
-    const dates = events
+    const dates = filteredEvents
       .map((e) => (e.match_date ? new Date(e.match_date).getTime() : null))
       .filter((d): d is number => d != null)
     const tMax = dates.length ? Math.max(...dates) : 0
@@ -89,14 +170,14 @@ export default function MapHeatmap({
         ? side // round_endpoint respects the side toggle
         : side
 
-    let working = events
+    let working = filteredEvents
     if (mode === 'round_endpoint') {
       // For each (match, round), keep ONLY the latest-timestamp event. That
       // event's position is where the round actually ended — either the spot
       // where we picked the last opponent (if we won the duel) or where our
       // last player died (if they killed us last).
       const byRound: Record<string, KillEventRow> = {}
-      for (const e of events) {
+      for (const e of filteredEvents) {
         if (e.ts_in_round_ms == null) continue
         const key = `${e.match_id}|${e.round_num}`
         const cur = byRound[key]
@@ -192,7 +273,20 @@ export default function MapHeatmap({
       })
     }
     return out
-  }, [events, mode, side, radar])
+  }, [filteredEvents, mode, side, radar])
+
+  // Group dots into kill/death/neutral layers for density rendering.
+  // Hook MUST come before any early return — react-hooks/rules-of-hooks.
+  const densityLayers: DensityLayer[] = useMemo(() => {
+    const kills = dots.filter((d) => d.kind === 'our_kill' || d.kind === 'pos_won')
+    const deaths = dots.filter((d) => d.kind === 'our_death' || d.kind === 'pos_lost')
+    const neutral = dots.filter((d) => d.kind === 'pos_neutral')
+    const out: DensityLayer[] = []
+    if (kills.length > 0) out.push({ filterId: 'kills', color: KIND_COLOR.our_kill, points: kills })
+    if (deaths.length > 0) out.push({ filterId: 'deaths', color: KIND_COLOR.our_death, points: deaths })
+    if (neutral.length > 0) out.push({ filterId: 'neutral', color: KIND_COLOR.pos_neutral, points: neutral })
+    return out
+  }, [dots])
 
   if (!radar) {
     return (
@@ -209,6 +303,14 @@ export default function MapHeatmap({
   const posLost = dots.filter((d) => d.kind === 'pos_lost').length
   const posNeutral = dots.filter((d) => d.kind === 'pos_neutral').length
 
+  // Effective render mode — 'auto' picks density once we cross the soup threshold.
+  const effectiveView: 'dots' | 'density' =
+    view === 'auto'
+      ? dots.length > DENSITY_AUTO_THRESHOLD
+        ? 'density'
+        : 'dots'
+      : view
+
   const tacticalLabel =
     mode === 'post_plant_hold'
       ? 'post-plant holds (ATT)'
@@ -222,6 +324,109 @@ export default function MapHeatmap({
 
   return (
     <div className="w-full">
+      {/* Filters — all client-side over the already-loaded events. */}
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        {roster && roster.length > 0 && (
+          <label className="flex items-center gap-1.5">
+            <span className="text-2xs uppercase tracking-wider text-muted-2">player</span>
+            <select
+              value={playerFilter}
+              onChange={(e) => setPlayerFilter(e.target.value)}
+              className="bg-surface border border-line-strong text-fg text-2xs rounded px-2 py-1 hover:border-gold/60 transition-colors"
+            >
+              <option value="all">Any</option>
+              {roster.map((r) => (
+                <option key={r.puuid} value={r.puuid}>
+                  {r.display_name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {opponentOptions.length > 1 && (
+          <label className="flex items-center gap-1.5">
+            <span className="text-2xs uppercase tracking-wider text-muted-2">opp</span>
+            <select
+              value={opponentFilter}
+              onChange={(e) => setOpponentFilter(e.target.value)}
+              className="bg-surface border border-line-strong text-fg text-2xs rounded px-2 py-1 hover:border-gold/60 transition-colors max-w-[10rem]"
+            >
+              <option value="all">Any</option>
+              {opponentOptions.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <div className="inline-flex rounded border border-line-strong overflow-hidden text-2xs">
+          {(['7d', '30d', 'all'] as MapHeatmapWindow[]).map((w, i) => {
+            const active = dateWindow === w
+            return (
+              <button
+                key={w}
+                type="button"
+                onClick={() => setDateWindow(w)}
+                className={`px-2 py-1 uppercase tracking-wider transition-colors ${i > 0 ? 'border-l border-line-strong' : ''} ${
+                  active
+                    ? 'bg-gold/20 text-gold font-semibold'
+                    : 'bg-surface text-muted hover:text-fg'
+                }`}
+              >
+                {w === 'all' ? 'all time' : w}
+              </button>
+            )
+          })}
+        </div>
+        {filtersActive && (
+          <>
+            <span className="text-2xs text-muted-2 tnum">
+              {filteredEvents.length} of {events.length}
+            </span>
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="text-2xs uppercase tracking-wider text-crimson hover:text-crimson/80 transition-colors ml-auto"
+            >
+              clear
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* View toggle (auto / dots / density). Auto picks density when N is big. */}
+      <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
+        <div className="inline-flex rounded-md border border-line-strong overflow-hidden text-2xs">
+          {(['auto', 'dots', 'density'] as MapHeatmapView[]).map((v, i) => {
+            const active = view === v
+            const showAutoTag = v === 'auto' && view === 'auto'
+            return (
+              <button
+                key={v}
+                type="button"
+                onClick={() => changeView(v)}
+                className={`px-2.5 py-1 uppercase tracking-wider transition-colors ${i > 0 ? 'border-l border-line-strong' : ''} ${
+                  active
+                    ? 'bg-gold/20 text-gold font-semibold'
+                    : 'bg-surface text-muted hover:text-fg'
+                }`}
+              >
+                {v}
+                {showAutoTag && (
+                  <span className="ml-1 text-muted-2 normal-case tracking-normal">
+                    ({effectiveView})
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+        <span className="text-2xs text-muted-2 uppercase tracking-wider tnum">
+          {dots.length} event{dots.length === 1 ? '' : 's'}
+        </span>
+      </div>
+
       <div className="relative aspect-square w-full bg-black rounded-lg overflow-hidden border border-line">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -235,19 +440,23 @@ export default function MapHeatmap({
           className="absolute inset-0 w-full h-full"
           aria-label={`${mapName} kill-event heatmap`}
         >
-          {dots.map((d, i) => (
-            <circle
-              key={i}
-              cx={d.x}
-              cy={d.y}
-              r={0.011}
-              fill={KIND_COLOR[d.kind]}
-              fillOpacity={Math.max(0.18, d.recencyWeight * 0.7)}
-              stroke={KIND_COLOR[d.kind]}
-              strokeOpacity={Math.max(0.4, d.recencyWeight * 0.9)}
-              strokeWidth={0.0015}
-            />
-          ))}
+          {effectiveView === 'density' ? (
+            <DensityLayers layers={densityLayers} />
+          ) : (
+            dots.map((d, i) => (
+              <circle
+                key={i}
+                cx={d.x}
+                cy={d.y}
+                r={0.011}
+                fill={KIND_COLOR[d.kind]}
+                fillOpacity={Math.max(0.18, d.recencyWeight * 0.7)}
+                stroke={KIND_COLOR[d.kind]}
+                strokeOpacity={Math.max(0.4, d.recencyWeight * 0.9)}
+                strokeWidth={0.0015}
+              />
+            ))
+          )}
         </svg>
       </div>
 

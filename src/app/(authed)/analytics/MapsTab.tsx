@@ -11,7 +11,11 @@ import MapHeatmap, {
   type MapHeatmapSide,
 } from '@/components/maps/MapHeatmap'
 import SiteExecuteHeatmap from './SiteExecuteHeatmap'
-import type { KillEventRow } from '@/app/api/kill-events/route'
+import type {
+  KillEventRow,
+  KillEventsResponse,
+  RosterEntry,
+} from '@/app/api/kill-events/route'
 
 function Bar({ pct, color }: { pct: number | null; color: 'gold' | 'crimson' | 'muted' }) {
   const fill = pct == null ? 0 : Math.max(0, Math.min(100, pct))
@@ -31,11 +35,13 @@ function Bar({ pct, color }: { pct: number | null; color: 'gold' | 'crimson' | '
   )
 }
 
+type FetchPayload = { events: KillEventRow[]; roster: RosterEntry[] }
+
 type FetchState =
   | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; events: KillEventRow[] }
+  | { kind: 'ready'; events: KillEventRow[]; roster: RosterEntry[] }
 
 export default function MapsTab({ maps }: { maps: MapStat[] }) {
   const played = maps.filter((m) => m.total > 0)
@@ -45,7 +51,7 @@ export default function MapsTab({ maps }: { maps: MapStat[] }) {
   const [mode, setMode] = useState<MapHeatmapMode>('first_blood')
   const [side, setSide] = useState<MapHeatmapSide>('all')
   const [fetchState, setFetchState] = useState<FetchState>({ kind: 'idle' })
-  const cacheRef = useRef<Map_<KillEventRow[]>>({})
+  const cacheRef = useRef<Map_<FetchPayload>>({})
 
   const openMap = useCallback((m: Map) => {
     setActiveMap(m)
@@ -63,7 +69,7 @@ export default function MapsTab({ maps }: { maps: MapStat[] }) {
     }
     const cached = cacheRef.current[activeMap]
     if (cached) {
-      setFetchState({ kind: 'ready', events: cached })
+      setFetchState({ kind: 'ready', events: cached.events, roster: cached.roster })
       return
     }
     let cancelled = false
@@ -71,10 +77,10 @@ export default function MapsTab({ maps }: { maps: MapStat[] }) {
     fetch(`/api/kill-events?map=${encodeURIComponent(activeMap)}`)
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        const body = (await r.json()) as { events: KillEventRow[] }
+        const body = (await r.json()) as KillEventsResponse
         if (cancelled) return
-        cacheRef.current[activeMap] = body.events
-        setFetchState({ kind: 'ready', events: body.events })
+        cacheRef.current[activeMap] = { events: body.events, roster: body.roster }
+        setFetchState({ kind: 'ready', events: body.events, roster: body.roster })
       })
       .catch((e) => {
         if (cancelled) return
@@ -204,6 +210,7 @@ export default function MapsTab({ maps }: { maps: MapStat[] }) {
                 <MapHeatmap
                   mapName={activeMap}
                   events={fetchState.events}
+                  roster={fetchState.roster}
                   mode={mode}
                   side={side}
                 />
