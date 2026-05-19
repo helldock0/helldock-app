@@ -1,12 +1,21 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import type { PlayerStat } from '@/lib/analytics'
 import RatingTrendChart from '@/components/charts/RatingTrendChart'
 
-type SortKey = 'name' | 'games' | 'avgAcs' | 'avgKd' | 'avgPlusMinus' | 'bestMap' | 'delta' | 'fk' | 'fd' | 'plants' | 'defuses' | 'adr' | 'hs' | 'trade' | 'drag' | 'carry' | 'kst' | 'opduel' | 'rating2' | 'twok'
+const EXPAND_HINT_KEY = 'helldock.playersTab.expandHintDismissed'
+
+type SortKey = 'name' | 'games' | 'avgAcs' | 'avgKd' | 'avgPlusMinus' | 'bestMap' | 'delta' | 'fk' | 'fd' | 'plants' | 'defuses' | 'adr' | 'hs' | 'trade' | 'drag' | 'carry' | 'kst' | 'opduel' | 'rating2' | 'twok' | 'acsStdev' | 'postPlant'
 type SortDir = 'asc' | 'desc'
+type FocusKey = 'standard' | 'consistency' | 'plant'
+
+const FOCUS_PRESETS: Record<FocusKey, { key: SortKey; dir: SortDir; label: string }> = {
+  standard: { key: 'avgAcs', dir: 'desc', label: 'Standard' },
+  consistency: { key: 'acsStdev', dir: 'asc', label: 'Consistency' },
+  plant: { key: 'postPlant', dir: 'desc', label: 'Plant timing' },
+}
 
 const numCell = (n: number | null, suffix = '', decimals = 1) => {
   if (n === null || n === undefined) return '—'
@@ -20,6 +29,25 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
     dir: 'desc',
   })
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [showExpandHint, setShowExpandHint] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      if (!window.localStorage.getItem(EXPAND_HINT_KEY)) setShowExpandHint(true)
+    } catch {
+      // localStorage blocked — silently skip the hint
+    }
+  }, [])
+
+  function dismissExpandHint() {
+    setShowExpandHint(false)
+    try {
+      window.localStorage.setItem(EXPAND_HINT_KEY, '1')
+    } catch {
+      // ignore — hint just stays visible next mount
+    }
+  }
 
   const sorted = useMemo(() => {
     const rows = [...players]
@@ -67,6 +95,11 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
             return p.rating2 ?? -Infinity
           case 'twok':
             return p.twoKWinPct ?? -Infinity
+          case 'acsStdev':
+            // Players with no stdev sort to the bottom for asc (most-consistent first).
+            return p.acsStdev ?? Infinity
+          case 'postPlant':
+            return p.postPlantKills ?? -Infinity
         }
       }
       const av = get(a)
@@ -85,6 +118,13 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
     )
   }
 
+  function applyFocus(focus: FocusKey) {
+    const preset = FOCUS_PRESETS[focus]
+    setSort({ key: preset.key, dir: preset.dir })
+  }
+  const activeFocus: FocusKey =
+    sort.key === 'acsStdev' ? 'consistency' : sort.key === 'postPlant' ? 'plant' : 'standard'
+
   if (players.length === 0) {
     return (
       <div className="bg-surface-2 border border-line-strong/40 rounded-2xl p-8 text-center text-muted text-sm">
@@ -94,8 +134,56 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
   }
 
   return (
+    <div className="space-y-3">
+      {showExpandHint && (
+        <div className="flex items-center justify-between gap-3 bg-gold/8 border border-gold/30 rounded-xl px-4 py-2.5">
+          <p className="text-xs text-fg">
+            <span className="text-gold font-semibold">tip:</span> click any player row to expand
+            an advanced drawer — KPR, survive %, ACS stdev, pre/post-plant split, per-map ACS, full rating trend.
+          </p>
+          <button
+            type="button"
+            onClick={dismissExpandHint}
+            className="shrink-0 text-2xs uppercase tracking-wider text-muted-2 hover:text-gold transition-colors"
+          >
+            got it ✕
+          </button>
+        </div>
+      )}
+      {/* Focus presets — switch sort to surface specific metric families */}
+      <div className="flex flex-wrap items-center gap-3 bg-surface-2 border border-line-strong/40 rounded-2xl px-4 py-3">
+        <span className="text-2xs uppercase tracking-[0.16em] text-muted-2">Focus</span>
+        <div className="flex items-center gap-1.5">
+          {(Object.keys(FOCUS_PRESETS) as FocusKey[]).map((f) => {
+            const active = activeFocus === f
+            return (
+              <button
+                key={f}
+                type="button"
+                onClick={() => applyFocus(f)}
+                className={`
+                  text-2xs uppercase tracking-[0.14em] px-2.5 py-1 rounded-md transition-colors
+                  ${active
+                    ? 'bg-gold/15 text-gold border border-gold/40'
+                    : 'bg-surface text-muted border border-line hover:text-fg hover:border-line-strong'}
+                `}
+              >
+                {FOCUS_PRESETS[f].label}
+              </button>
+            )
+          })}
+        </div>
+        <span className="ml-auto text-2xs text-muted-2 tracking-wider">
+          {activeFocus === 'consistency'
+            ? 'sorted by ACS stdev · lower = more consistent'
+            : activeFocus === 'plant'
+            ? 'sorted by post-plant kills · higher = stronger in retake / hold'
+            : 'sort by any column · click row for advanced drawer'}
+        </span>
+      </div>
+
     <div className="bg-surface-2 border border-line-strong/40 rounded-2xl overflow-x-auto">
-      <table className="w-full text-sm whitespace-nowrap min-w-[1600px]">
+      <table className="w-full text-sm whitespace-nowrap min-w-[1750px]">
         <thead>
           <tr className="border-b border-line text-2xs uppercase tracking-[0.16em] text-muted-2">
             <Th label="Player" k="name" sort={sort} onClick={toggleSort} align="left" />
@@ -119,6 +207,9 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
             <Th label="OpDuel" k="opduel" sort={sort} onClick={toggleSort} align="right" tooltip="Opening-duel win rate. When the first kill of a round involved you (your kill OR your death), how often you came out on top." />
             <Th label="2K W%" k="twok" sort={sort} onClick={toggleSort} align="right" tooltip="In rounds where you got 2+ kills, % of those rounds we actually won. High = your multi-kills convert into round wins." />
             <Th label="Rating" k="rating2" sort={sort} onClick={toggleSort} align="right" tooltip="HLTV-style Rating 2.0 — weighted blend of kills/round, survival/round, and KST. 1.00 ≈ pro average. Above 1 = above average." />
+            <Th label="ACS σ" k="acsStdev" sort={sort} onClick={toggleSort} align="right" tooltip="ACS standard deviation across matches. Lower = more consistent performer. CV in parens = stdev as % of mean. Cv < 20% = steady; > 35% = streaky." />
+            <Th label="PrePlant" k="postPlant" sort={sort} onClick={toggleSort} align="right" tooltip="Pre-plant kills total (before bomb planted). Sorts by post-plant — use this column header to see split: pre / post." />
+            <Th label="PostPlant" k="postPlant" sort={sort} onClick={toggleSort} align="right" tooltip="Post-plant kills total (after bomb planted). High = strong in retake / hold phase. Sort active here." />
           </tr>
         </thead>
         <tbody>
@@ -397,13 +488,55 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
                       </span>
                     )}
                   </td>
+                  {/* B3 — surface previously drawer-only metrics */}
+                  <td
+                    className="px-4 py-3 text-right tnum"
+                    title={
+                      p.acsStdev == null
+                        ? 'Not enough games for stdev'
+                        : `Stdev ${p.acsStdev} ACS across ${p.games} matches${p.acsCv != null ? ` (cv ${p.acsCv}%)` : ''}. Lower = steadier.`
+                    }
+                  >
+                    {p.acsStdev == null ? (
+                      <span className="text-muted-2">—</span>
+                    ) : (
+                      <span
+                        className={
+                          p.acsCv != null && p.acsCv < 20
+                            ? 'text-win-green'
+                            : p.acsCv != null && p.acsCv > 35
+                            ? 'text-crimson'
+                            : 'text-fg'
+                        }
+                      >
+                        {p.acsStdev}
+                        {p.acsCv != null && (
+                          <span className="text-muted-2 text-2xs ml-1">({p.acsCv}%)</span>
+                        )}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right tnum text-fg">
+                    {p.prePlantKills === 0 && p.postPlantKills === 0 ? (
+                      <span className="text-muted-2">—</span>
+                    ) : (
+                      p.prePlantKills
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right tnum text-fg">
+                    {p.prePlantKills === 0 && p.postPlantKills === 0 ? (
+                      <span className="text-muted-2">—</span>
+                    ) : (
+                      p.postPlantKills
+                    )}
+                  </td>
                 </tr>
                 {isExpanded && (
                   <tr
                     key={`${p.playerId}-detail`}
                     className={i !== sorted.length - 1 ? 'border-b border-line' : ''}
                   >
-                    <td colSpan={21} className="bg-surface px-6 py-4 space-y-4">
+                    <td colSpan={24} className="bg-surface px-6 py-4 space-y-4">
                       {/* Rating trend chart */}
                       <div>
                         <div className="flex items-baseline justify-between mb-2">
@@ -537,6 +670,7 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
           })}
         </tbody>
       </table>
+    </div>
     </div>
   )
 }

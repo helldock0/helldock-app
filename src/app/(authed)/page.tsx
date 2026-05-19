@@ -12,6 +12,7 @@ import {
   type DashMatchPlayer,
   type WatchItem,
 } from '@/lib/dashboard'
+import { computeWeeklyRetro, type TrendsMatchPlayer } from '@/lib/trends'
 import { requireSelectedTeam } from '@/lib/team-session'
 
 export const dynamic = 'force-dynamic'
@@ -202,6 +203,12 @@ export default async function HomePage() {
     )
   }
 
+  // Ingest failures badge — surface silent errors from kill_events/Discord paths.
+  const { count: failureCount } = await supabase
+    .from('ingest_failures')
+    .select('id', { count: 'exact', head: true })
+    .is('resolved_at', null)
+
   const pulse = computePulse(matches)
   const broken = computeBroken(matches, rounds)
   const working = computeWorking(matches, rounds, matchPlayers)
@@ -209,19 +216,51 @@ export default async function HomePage() {
   const entry = computeEntry(rounds)
   const watchList = computeWatchList(matches, rounds, matchPlayers)
 
+  // Weekly retro for the trend-alert strip (only renders when |Δwr| ≥ 3pp).
+  // Trends compute needs player_id present — orphans get filtered out.
+  const trendsMatchPlayers: TrendsMatchPlayer[] = matchPlayers
+    .filter((mp): mp is DashMatchPlayer & { player_id: string } => mp.player_id != null)
+    .map((mp) => ({ match_id: mp.match_id, player_id: mp.player_id, acs: mp.acs, player: mp.player }))
+  const weeklyRetro = computeWeeklyRetro(matches, rounds, trendsMatchPlayers)
+  const trendAlert =
+    weeklyRetro.delta.winPct !== null && Math.abs(weeklyRetro.delta.winPct) >= 3
+      ? {
+          deltaPp: weeklyRetro.delta.winPct,
+          curr: weeklyRetro.current.winPct,
+          prior: weeklyRetro.prior.winPct,
+          currN: weeklyRetro.current.matches,
+        }
+      : null
+
   return (
     <main className="px-6 py-6 max-w-7xl mx-auto">
       {/* Page heading */}
-      <div className="flex items-end justify-between mb-6">
+      <div className="flex items-end justify-between mb-6 gap-3 flex-wrap">
         <div>
           <p className="text-2xs uppercase tracking-[0.25em] text-muted-2">
             command center
           </p>
           <h1 className="text-2xl font-bold text-fg leading-tight mt-1">Pulse</h1>
         </div>
-        <p className="text-2xs text-muted-2 uppercase tracking-wider tnum">
-          {pulse.totalScrims} scrims · live
-        </p>
+        <div className="flex items-center gap-3">
+          {failureCount != null && failureCount > 0 && (
+            <Link
+              href="/api/admin/failures"
+              className="
+                inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md
+                bg-crimson/15 border border-crimson/40 text-crimson
+                text-2xs font-bold uppercase tracking-[0.16em]
+                hover:bg-crimson/25 transition-colors
+              "
+              title="Unresolved ingest failures (Discord / kill_events)"
+            >
+              ⚠ {failureCount} failure{failureCount === 1 ? '' : 's'}
+            </Link>
+          )}
+          <p className="text-2xs text-muted-2 uppercase tracking-wider tnum">
+            {pulse.totalScrims} scrims · live
+          </p>
+        </div>
       </div>
 
       {/* Zone 1 — PULSE */}
@@ -355,10 +394,51 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* Trend alert — only renders on a 3pp+ WoW swing */}
+      {trendAlert && (
+        <section className="mb-7">
+          <Link
+            href="/trends"
+            className={`
+              group block rounded-2xl border bg-surface-2 p-4
+              transition-colors hover:bg-surface-3
+              ${trendAlert.deltaPp >= 0 ? 'border-gold/40 hover:border-gold/60' : 'border-crimson/40 hover:border-crimson/60'}
+            `}
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-2xs uppercase tracking-[0.16em] text-muted-2">
+                  Trend alert · last 7 days
+                </div>
+                <div className="text-fg text-sm font-medium mt-1 tnum">
+                  Win rate{' '}
+                  <span className={trendAlert.deltaPp >= 0 ? 'text-gold' : 'text-crimson'}>
+                    {trendAlert.deltaPp >= 0 ? '+' : ''}
+                    {trendAlert.deltaPp}pp
+                  </span>{' '}
+                  WoW · {trendAlert.prior === null ? '—' : `${trendAlert.prior}%`}{' '}
+                  → {trendAlert.curr === null ? '—' : `${trendAlert.curr}%`}{' '}
+                  <span className="text-muted-2">({trendAlert.currN} matches this week)</span>
+                </div>
+              </div>
+              <span className="shrink-0 text-xs text-muted-2 group-hover:text-gold transition-colors">
+                see trends →
+              </span>
+            </div>
+          </Link>
+        </section>
+      )}
+
       {/* Zone 4 — OPP INTEL */}
       <section className="mb-7">
         <div className="flex items-baseline justify-between mb-3 mt-1">
           <ZoneHeader title="Opp intel" hint="top 5" />
+          <Link
+            href="/prep"
+            className="text-2xs uppercase tracking-[0.16em] text-muted-2 hover:text-gold transition-colors"
+          >
+            🧾 prep →
+          </Link>
         </div>
         <div className="bg-surface-2 rounded-2xl border border-line-strong/40 overflow-hidden">
           {oppIntel.length === 0 ? (

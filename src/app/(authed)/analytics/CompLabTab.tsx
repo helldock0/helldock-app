@@ -272,6 +272,98 @@ function liftColor(lift: number | null): { bg: string; text: string } {
   return { bg: `rgba(220,20,60,${a.toFixed(2)})`, text: '#FCA5A5' }
 }
 
+// B4 — Compact "top synergies / anti-synergies" strip surfaced on the default
+// (per-map) view. Pulls the highest- and lowest-lift pairs above the minSample
+// threshold so synergy doesn't stay buried 3 clicks deep.
+function SynergyHighlightsStrip({
+  synergy,
+  onSeeAll,
+}: {
+  synergy: SynergyMatrix
+  onSeeAll: () => void
+}) {
+  const withLift = synergy.pairs.filter((p) => p.liftPp != null) as Array<
+    SynergyPair & { liftPp: number }
+  >
+  if (withLift.length < 2) return null
+
+  const byLift = [...withLift].sort((a, b) => b.liftPp - a.liftPp)
+  const top = byLift.slice(0, 3)
+  const bottom = byLift.slice(-3).reverse()
+  // If top and bottom collide (small dataset), don't render — synergy view itself is enough.
+  if (top.length === 0 || top[0].liftPp <= 0) return null
+
+  return (
+    <button
+      type="button"
+      onClick={onSeeAll}
+      className="
+        group block w-full text-left bg-surface-2 border border-line-strong/40 rounded-2xl
+        px-5 py-4 transition-colors hover:border-gold/40 hover:bg-surface-3
+      "
+    >
+      <div className="flex items-baseline justify-between mb-3">
+        <span className="text-2xs uppercase tracking-[0.18em] text-muted-2">
+          Pair synergy snapshot · n ≥ {synergy.minSample}
+        </span>
+        <span className="text-2xs uppercase tracking-wider text-muted-2 group-hover:text-gold transition-colors">
+          see all →
+        </span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <div className="text-2xs uppercase tracking-wider text-win-green/90 mb-1.5">
+            Top synergies
+          </div>
+          <ul className="space-y-1 text-sm">
+            {top.map((p) => (
+              <li
+                key={`top-${p.a}-${p.b}`}
+                className="flex items-center justify-between gap-3 tnum"
+              >
+                <span className="text-fg truncate">
+                  {p.a} <span className="text-muted-2">+</span> {p.b}
+                </span>
+                <span className="shrink-0 text-win-green font-semibold">
+                  +{p.liftPp}pp
+                  <span className="text-muted-2 text-2xs ml-1">n={p.total}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <div className="text-2xs uppercase tracking-wider text-crimson/80 mb-1.5">
+            Anti-synergies
+          </div>
+          {bottom.filter((p) => p.liftPp < 0).length === 0 ? (
+            <p className="text-xs text-muted-2">none — all duos overperform their solo baseline</p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {bottom
+                .filter((p) => p.liftPp < 0)
+                .map((p) => (
+                  <li
+                    key={`bot-${p.a}-${p.b}`}
+                    className="flex items-center justify-between gap-3 tnum"
+                  >
+                    <span className="text-fg truncate">
+                      {p.a} <span className="text-muted-2">+</span> {p.b}
+                    </span>
+                    <span className="shrink-0 text-crimson font-semibold">
+                      {p.liftPp}pp
+                      <span className="text-muted-2 text-2xs ml-1">n={p.total}</span>
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </button>
+  )
+}
+
 function SynergyView({ synergy }: { synergy: SynergyMatrix }) {
   if (synergy.agents.length < 2) {
     return (
@@ -595,6 +687,10 @@ export default function CompLabTab({
         <SynergyView synergy={synergy} />
       ) : (
         <>
+          <SynergyHighlightsStrip
+            synergy={synergy}
+            onSeeAll={() => changeView('synergy')}
+          />
           <Section
             title="Winners"
             hint="≥60% on 3+"

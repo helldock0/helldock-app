@@ -163,12 +163,26 @@ export default function PrepClient({ dossier }: { dossier: OpponentDossier }) {
     <main className="px-6 py-6 max-w-4xl mx-auto">
       <div className="mb-6 flex items-end justify-between gap-3 flex-wrap">
         <div>
-          <Link
-            href={`/opponents/${encodeURIComponent(dossier.name)}`}
-            className="text-2xs uppercase tracking-[0.16em] text-muted-2 hover:text-gold transition-colors"
+          <nav
+            aria-label="Breadcrumb"
+            className="flex items-center gap-1.5 text-2xs uppercase tracking-[0.16em] text-muted-2"
           >
-            ← back to dossier
-          </Link>
+            <Link
+              href="/analytics?tab=opps"
+              className="hover:text-gold transition-colors"
+            >
+              opponents
+            </Link>
+            <span className="text-muted-2/50">/</span>
+            <Link
+              href={`/opponents/${encodeURIComponent(dossier.name)}`}
+              className="hover:text-gold transition-colors"
+            >
+              dossier
+            </Link>
+            <span className="text-muted-2/50">/</span>
+            <span className="text-fg/80">prep</span>
+          </nav>
           <p className="text-2xs uppercase tracking-[0.25em] text-muted-2 mt-2">
             prep checklist
           </p>
