@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import ScoreProgressionChart from '@/components/charts/ScoreProgressionChart'
 import EconomyCurveChart from '@/components/charts/EconomyCurveChart'
 import WinProbCurve from '@/components/charts/WinProbCurve'
+import MatchHeatmap, { type MatchHeatmapEvent } from './MatchHeatmap'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -938,7 +939,7 @@ function OppPlayersTab({ players, editMode, onOppPlayerChange }: {
 
 // ── Main ───────────────────────────────────────────────────────────────────
 
-const TABS = ['Overview', 'Rounds', 'Players', 'Opp Players'] as const
+const TABS = ['Overview', 'Rounds', 'Heatmap', 'Players', 'Opp Players'] as const
 type Tab = (typeof TABS)[number]
 
 export type RoundWP = {
@@ -954,6 +955,7 @@ export default function MatchDetail({
   oppPlayers: initialOppPlayers,
   initialEdit = false,
   roundWPs = [],
+  killEvents = [],
   rosterOptions = [],
 }: {
   match: Match
@@ -962,6 +964,7 @@ export default function MatchDetail({
   oppPlayers: OppPlayer[]
   initialEdit?: boolean
   roundWPs?: RoundWP[]
+  killEvents?: MatchHeatmapEvent[]
   rosterOptions?: RosterOption[]
 }) {
   const [tab, setTab] = useState<Tab>('Overview')
@@ -1150,6 +1153,9 @@ export default function MatchDetail({
             {t === 'Rounds' && localRounds.length > 0 && (
               <span className="ml-1.5 text-xs opacity-60">{localRounds.length}</span>
             )}
+            {t === 'Heatmap' && killEvents.length > 0 && (
+              <span className="ml-1.5 text-xs opacity-60">{killEvents.length}</span>
+            )}
             {t === 'Players' && localMatchPlayers.length > 0 && (
               <span className="ml-1.5 text-xs opacity-60">{localMatchPlayers.length}</span>
             )}
@@ -1166,6 +1172,11 @@ export default function MatchDetail({
       )}
       {tab === 'Rounds' && (
         <RoundsTab rounds={localRounds} editMode={editMode} onRoundChange={handleRoundChange} roundWPs={roundWPs} />
+      )}
+      {tab === 'Heatmap' && (
+        <div className="py-2">
+          <MatchHeatmap mapName={localMatch.map_name} events={killEvents} />
+        </div>
       )}
       {tab === 'Players' && (
         <PlayersTab players={localMatchPlayers} editMode={editMode} onPlayerChange={handleMpChange} rosterOptions={rosterOptions} />
