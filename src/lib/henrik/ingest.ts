@@ -44,12 +44,24 @@ export async function ingestMatch(opts: IngestOpts): Promise<IngestResult> {
   const teamConfig = TEAM_CONFIGS[teamSlug]
   if (!teamConfig) return { status: 'error', error: `Unknown team slug: ${teamSlug}` }
 
-  // Fast-path dedupe by henrik_id (before fetching anything from Henrik)
+  // Team UUID lookup (needed before dedupe so we can scope per-team — internal
+  // scrims are intentionally importable once per team via the composite unique
+  // index `matches_henrik_id_team_id_key`).
+  const { data: teamRow } = await supabase
+    .from('teams')
+    .select('id')
+    .eq('slug', teamSlug)
+    .single()
+  const teamId = teamRow?.id
+  if (!teamId) return { status: 'error', error: 'Team not found in DB' }
+
+  // Fast-path dedupe by (henrik_id, team_id)
   {
     const { data: existing } = await supabase
       .from('matches')
       .select('id, match_id_helldock')
       .eq('henrik_id', henrikId)
+      .eq('team_id', teamId)
       .maybeSingle()
     if (existing) {
       return {
@@ -72,15 +84,6 @@ export async function ingestMatch(opts: IngestOpts): Promise<IngestResult> {
     }
     rawMatch = result
   }
-
-  // Team UUID lookup
-  const { data: teamRow } = await supabase
-    .from('teams')
-    .select('id')
-    .eq('slug', teamSlug)
-    .single()
-  const teamId = teamRow?.id
-  if (!teamId) return { status: 'error', error: 'Team not found in DB' }
 
   // Build player_account lookup maps so transformer outputs get mapped to player_id.
   // PUUID is preferred (stable across riot-id rename); riot_key is the fallback.
@@ -160,6 +163,7 @@ export async function ingestMatch(opts: IngestOpts): Promise<IngestResult> {
         .from('matches')
         .select('id, match_id_helldock')
         .eq('henrik_id', henrikId)
+        .eq('team_id', teamId)
         .maybeSingle()
       if (dupe) {
         return {

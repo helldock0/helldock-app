@@ -47,7 +47,8 @@ export async function POST(req: Request) {
   }
 
   const saved = results.filter((r) => r.status === 'saved').length
+  const duplicates = results.filter((r) => r.status === 'duplicate').length
   const errors = results.filter((r) => r.status === 'error')
 
-  return NextResponse.json({ saved, errors, results })
+  return NextResponse.json({ saved, duplicates, errors, results })
 }

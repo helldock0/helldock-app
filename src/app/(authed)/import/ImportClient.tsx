@@ -92,7 +92,7 @@ export default function ImportClient({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [loadState, setLoadState] = useState<LoadState>('idle')
   const [fetchError, setFetchError] = useState<string | null>(null)
-  const [saveResult, setSaveResult] = useState<{ saved: number; errors: unknown[] } | null>(null)
+  const [saveResult, setSaveResult] = useState<{ saved: number; duplicates: number; errors: unknown[] } | null>(null)
   const [fetchedAt, setFetchedAt] = useState<number | null>(null)
   const [rehydrateProgress, setRehydrateProgress] = useState<{
     done: number
@@ -217,7 +217,7 @@ export default function ImportClient({
       return
     }
 
-    setSaveResult({ saved: data.saved, errors: data.errors ?? [] })
+    setSaveResult({ saved: data.saved, duplicates: data.duplicates ?? 0, errors: data.errors ?? [] })
     setLoadState('idle')
 
     // Optimistically mark just-saved matches as already-in-db in the cached list,
@@ -383,6 +383,11 @@ export default function ImportClient({
       {saveResult && (
         <div className="bg-[#2C2C32] border border-green-500/40 rounded-xl p-4 mb-4 text-green-400 text-sm">
           {saveResult.saved} match{saveResult.saved !== 1 ? 'es' : ''} imported.
+          {saveResult.duplicates > 0 && (
+            <span className="text-[#6B7280] ml-2">
+              {saveResult.duplicates} already imported (skipped).
+            </span>
+          )}
           {saveResult.errors.length > 0 && (
             <span className="text-[#DC143C] ml-2">{saveResult.errors.length} error(s).</span>
           )}
