@@ -106,7 +106,7 @@ export default function CalendarGrid({
                   type="button"
                   onClick={() => setEditing({ mode: 'create', dateKey })}
                   title="Schedule scrim"
-                  className="text-2xs text-muted-2 hover:text-gold transition-colors px-1"
+                  className="text-sm leading-none w-5 h-5 inline-flex items-center justify-center rounded text-muted-2 hover:text-gold hover:bg-gold/10 transition-colors"
                 >
                   +
                 </button>

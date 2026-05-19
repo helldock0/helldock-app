@@ -31,9 +31,13 @@ export async function middleware(request: NextRequest) {
   const isAuthPath =
     request.nextUrl.pathname.startsWith('/login') ||
     request.nextUrl.pathname.startsWith('/auth')
+  // Public shareable routes that anyone with the link can open.
+  const isPublicShare =
+    request.nextUrl.pathname.startsWith('/poll/') ||
+    request.nextUrl.pathname.startsWith('/api/poll-by-token/')
 
-  // Unauthenticated → redirect to /login
-  if (!user && !isAuthPath) {
+  // Unauthenticated → redirect to /login (unless on an auth or public route)
+  if (!user && !isAuthPath && !isPublicShare) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
