@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import type { PlayerStat } from '@/lib/analytics'
 import RatingTrendChart from '@/components/charts/RatingTrendChart'
 
@@ -141,6 +142,14 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
                         }`}
                       />
                       {p.name}
+                      <Link
+                        href={`/players/${encodeURIComponent(p.playerId)}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-2xs text-muted-2 hover:text-gold transition-colors uppercase tracking-wider"
+                        title="Open player profile"
+                      >
+                        profile →
+                      </Link>
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center text-muted tnum">{p.games}</td>

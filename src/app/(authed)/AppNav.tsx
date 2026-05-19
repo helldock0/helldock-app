@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import GlobalSearch from './GlobalSearch'
 
 const LINKS = [
   { href: '/', label: 'Home', match: (p: string) => p === '/' },
@@ -60,6 +61,10 @@ export default function AppNav({ currentTeamSlug }: { currentTeamSlug: string | 
               </svg>
             </button>
           )}
+        </div>
+
+        <div className="hidden md:flex flex-1 max-w-xs justify-center mx-4">
+          <GlobalSearch />
         </div>
 
         <nav className="flex items-center gap-1">
