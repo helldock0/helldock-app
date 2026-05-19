@@ -117,20 +117,45 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     if (!keErr) killEventsInserted = xf.killEvents.length
   }
 
-  // Patch match_players by (match_id, player_id). We DO NOT touch manual fields
-  // (aim_score, decision_score, comms_score, notes, attendance).
+  // If the match has zero match_players (silent partial-import failure), INSERT
+  // all 5 fresh instead of trying to UPDATE. Otherwise patch the existing rows.
+  const { count: existingMpCount } = await supabase
+    .from('match_players')
+    .select('id', { count: 'exact', head: true })
+    .eq('match_id', match.id)
+
   let mpPatched = 0
-  for (const p of xf.ourPlayers) {
-    const playerId =
-      (p.puuid ? byPuuid.get(p.puuid) : undefined) ?? byRiotKey.get(p.riot_key) ?? null
-    if (!playerId) continue
-    const { error } = await supabase
-      .from('match_players')
-      .update({
-        puuid: p.puuid,
-        riot_name: p.riot_name,
-        riot_tag: p.riot_tag,
-        agent: p.agent,
+  let mpInserted = 0
+
+  if ((existingMpCount ?? 0) === 0 && xf.ourPlayers.length) {
+    const rows = xf.ourPlayers.map((p) => {
+      const { riot_key, ...rest } = p
+      const playerId =
+        (p.puuid ? byPuuid.get(p.puuid) : undefined) ?? byRiotKey.get(riot_key) ?? null
+      return { ...rest, match_id: match.id, player_id: playerId }
+    })
+    const { error } = await supabase.from('match_players').insert(rows)
+    if (error) {
+      return NextResponse.json(
+        { error: `match_players insert failed: ${error.message}` },
+        { status: 500 }
+      )
+    }
+    mpInserted = rows.length
+  } else {
+    // Patch match_players by (match_id, player_id). We DO NOT touch manual fields
+    // (aim_score, decision_score, comms_score, notes, attendance).
+    for (const p of xf.ourPlayers) {
+      const playerId =
+        (p.puuid ? byPuuid.get(p.puuid) : undefined) ?? byRiotKey.get(p.riot_key) ?? null
+      if (!playerId) continue
+      const { error } = await supabase
+        .from('match_players')
+        .update({
+          puuid: p.puuid,
+          riot_name: p.riot_name,
+          riot_tag: p.riot_tag,
+          agent: p.agent,
         role: p.role,
         k: p.k,
         d: p.d,
@@ -163,7 +188,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       })
       .eq('match_id', match.id)
       .eq('player_id', playerId)
-    if (!error) mpPatched++
+      if (!error) mpPatched++
+    }
   }
 
   // Patch opp_players by (match_id, riot_id_full)
@@ -197,6 +223,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     match_id_helldock: match.match_id_helldock,
     rounds_patched: roundsPatched,
     match_players_patched: mpPatched,
+    match_players_inserted: mpInserted,
     opp_players_patched: oppPatched,
     kill_events_inserted: killEventsInserted,
   })

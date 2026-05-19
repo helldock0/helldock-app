@@ -111,16 +111,25 @@ export async function POST(req: Request) {
 
     // Insert rounds
     if (xf.rounds.length) {
-      await supabase.from('rounds').insert(
-        xf.rounds.map((r) => ({ ...r, match_id: matchUUID }))
-      )
+      const { error: rdErr } = await supabase
+        .from('rounds')
+        .insert(xf.rounds.map((r) => ({ ...r, match_id: matchUUID })))
+      if (rdErr) {
+        results.push({
+          henrik_id: preview.henrik_id,
+          match_id: currentMatchId,
+          status: 'error',
+          error: `rounds insert failed: ${rdErr.message}`,
+        })
+        continue
+      }
     }
 
     // Insert our players. riot_name/riot_tag are now persisted so that orphaned rows
     // (player_id IS NULL) can still be identified and later linked to a player via the
     // alt-account UI in the match detail page.
     if (xf.ourPlayers.length) {
-      await supabase.from('match_players').insert(
+      const { error: mpErr } = await supabase.from('match_players').insert(
         xf.ourPlayers.map((p) => {
           const { riot_key, ...rest } = p
           const playerId =
@@ -134,13 +143,31 @@ export async function POST(req: Request) {
           }
         })
       )
+      if (mpErr) {
+        results.push({
+          henrik_id: preview.henrik_id,
+          match_id: currentMatchId,
+          status: 'error',
+          error: `match_players insert failed: ${mpErr.message}`,
+        })
+        continue
+      }
     }
 
     // Insert opp players
     if (xf.oppPlayers.length) {
-      await supabase.from('opp_players').insert(
-        xf.oppPlayers.map((p) => ({ ...p, match_id: matchUUID }))
-      )
+      const { error: oppErr } = await supabase
+        .from('opp_players')
+        .insert(xf.oppPlayers.map((p) => ({ ...p, match_id: matchUUID })))
+      if (oppErr) {
+        results.push({
+          henrik_id: preview.henrik_id,
+          match_id: currentMatchId,
+          status: 'error',
+          error: `opp_players insert failed: ${oppErr.message}`,
+        })
+        continue
+      }
     }
 
     // Insert kill_events (one row per kill across all rounds)
