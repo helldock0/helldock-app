@@ -46,8 +46,13 @@ export async function POST(req: Request) {
         B: { wins: 2, total: 3 },
         C: { wins: 1, total: 1 },
       },
-      ults: { us: 18, them: 21 },
+      ults: null,
     },
+    highlights: [
+      { kind: 'four_k', player: 'MAK', count: 1 },
+      { kind: 'clutch', player: 'Trippie', clutchType: '1v3', round: 17 },
+      { kind: 'three_k', player: 'Spike', count: 2 },
+    ],
     streak: { kind: 'W', length: 3, extended: true },
     mapHistory: {
       mapName: 'Lotus',

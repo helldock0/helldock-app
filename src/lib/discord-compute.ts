@@ -414,3 +414,88 @@ export async function computePlayerAcsDelta(
 
   return deltas
 }
+
+// ── Highlights ───────────────────────────────────────────────────────────────
+
+export type Highlight =
+  | { kind: 'ace' | 'four_k' | 'three_k'; player: string; count: number }
+  | { kind: 'clutch'; player: string; clutchType: string; round: number }
+
+export type MatchPlayerForHighlights = {
+  display_name: string
+  riot_name: string | null
+  two_k: number | null
+  three_k: number | null
+  four_k: number | null
+  aces: number | null
+}
+
+export type RoundForHighlights = {
+  round_num: number | null
+  clutch_type: string | null
+  clutch_player: string | null
+}
+
+const HIGHLIGHT_CAP = 3
+
+// Bigger is better. Tunes the ordering when multiple highlights compete.
+function scoreHighlight(h: Highlight): number {
+  if (h.kind === 'ace') return 100
+  if (h.kind === 'four_k') return 80
+  if (h.kind === 'clutch') {
+    // 1v5 = 90, 1v4 = 75, 1v3 = 60, 1v2 = 30
+    const denom = parseInt(h.clutchType.replace(/^1v/i, ''), 10)
+    if (denom === 5) return 90
+    if (denom === 4) return 75
+    if (denom === 3) return 60
+    return 30
+  }
+  return 50 // three_k
+}
+
+/**
+ * Pick the top match moments to surface in the Discord recap. Walks
+ * match_players for multi-kill leaders (aces / 4K / 3K — but only the player's
+ * best class) and rounds for clutch attribution (only our roster).
+ * Returns up to HIGHLIGHT_CAP highlights ranked by impact.
+ */
+export function computeHighlights(
+  matchPlayers: MatchPlayerForHighlights[],
+  rounds: RoundForHighlights[]
+): Highlight[] {
+  const out: Highlight[] = []
+
+  for (const mp of matchPlayers) {
+    if ((mp.aces ?? 0) > 0) {
+      out.push({ kind: 'ace', player: mp.display_name, count: mp.aces! })
+    } else if ((mp.four_k ?? 0) > 0) {
+      out.push({ kind: 'four_k', player: mp.display_name, count: mp.four_k! })
+    } else if ((mp.three_k ?? 0) > 0) {
+      out.push({ kind: 'three_k', player: mp.display_name, count: mp.three_k! })
+    }
+  }
+
+  // Clutch attribution — match round.clutch_player to our roster's riot_name
+  // (case-insensitive). Skip opp clutches.
+  const ourByRiot = new Map<string, string>() // riot_name (lower) -> display_name
+  for (const mp of matchPlayers) {
+    if (mp.riot_name) ourByRiot.set(mp.riot_name.toLowerCase(), mp.display_name)
+  }
+  for (const r of rounds) {
+    if (!r.clutch_type || !r.clutch_player || r.round_num == null) continue
+    const display = ourByRiot.get(r.clutch_player.toLowerCase())
+    if (!display) continue
+    // Only surface meaningful clutches (1v2+).
+    if (!/^1v[2-5]$/i.test(r.clutch_type)) continue
+    out.push({
+      kind: 'clutch',
+      player: display,
+      clutchType: r.clutch_type,
+      round: r.round_num,
+    })
+  }
+
+  out.sort((a, b) => scoreHighlight(b) - scoreHighlight(a))
+  return out.slice(0, HIGHLIGHT_CAP)
+}
+

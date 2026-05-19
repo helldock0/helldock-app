@@ -12,12 +12,16 @@ import {
   computeStreakForMatch,
   computeMapHistory,
   computePlayerAcsDelta,
+  computeHighlights,
   type TacticalBreakdown,
   type StreakForMatch,
   type MapHistorySnapshot,
   type PlayerDelta,
   type OppScoreboardLine,
+  type Highlight,
   type RoundForBreakdown,
+  type RoundForHighlights,
+  type MatchPlayerForHighlights,
 } from '@/lib/discord-compute'
 import {
   renderMatchHeatmapPng,
@@ -45,6 +49,9 @@ export type DiscordMatchSummary = {
   // ── scoreboards ──
   playerDeltas: PlayerDelta[] | null
   oppScoreboard: OppScoreboardLine[] | null
+
+  // ── highlights (multi-kills + clutches) ──
+  highlights: Highlight[] | null
 
   // ── heatmap (set only when image is attached) ──
   heatmapPng: Buffer | null
@@ -82,11 +89,6 @@ export function buildMatchEmbed(s: DiscordMatchSummary) {
       inline: true,
     })
   }
-  // Spacer to balance the row if Halves+Pistol are odd
-  if (t.halves && t.pistol) {
-    fields.push({ name: '​', value: '​', inline: true })
-  }
-
   // ATT / DEF side stat blocks — inline, side by side.
   if (t.att) {
     const parts = [`${t.att.w}-${t.att.l}`]
@@ -100,10 +102,6 @@ export function buildMatchEmbed(s: DiscordMatchSummary) {
     if (t.def.avgDefuseSec != null) parts.push(`avg ${t.def.avgDefuseSec}s`)
     fields.push({ name: 'DEF', value: parts.join(' · '), inline: true })
   }
-  if (t.att && t.def) {
-    fields.push({ name: '​', value: '​', inline: true })
-  }
-
   // Buy types — full-width line.
   if (t.byBuyType) {
     fields.push({
@@ -128,12 +126,12 @@ export function buildMatchEmbed(s: DiscordMatchSummary) {
     }
   }
 
-  // Ults
-  if (t.ults) {
+  // Highlights — multi-kills + clutches, top 2-3 by impact.
+  if (s.highlights && s.highlights.length) {
     fields.push({
-      name: 'Ults used',
-      value: `${t.ults.us} us · ${t.ults.them} them`,
-      inline: true,
+      name: 'Highlights',
+      value: s.highlights.map(formatHighlight).join(' · '),
+      inline: false,
     })
   }
 
@@ -237,6 +235,19 @@ function formatKad(
 ): string {
   const fmt = (n: number | null) => (n == null ? '—' : String(n))
   return `${fmt(k)}/${fmt(a)}/${fmt(d)}`
+}
+
+function formatHighlight(h: Highlight): string {
+  if (h.kind === 'clutch') {
+    return `🧊 ${h.player} ${h.clutchType} clutch R${h.round}`
+  }
+  if (h.kind === 'ace') {
+    return `💥 ${h.player} ${h.count > 1 ? `${h.count}x ace` : 'ace'}`
+  }
+  if (h.kind === 'four_k') {
+    return `🔥 ${h.player} ${h.count > 1 ? `${h.count}x 4K` : '4K'}`
+  }
+  return `⚡ ${h.player} ${h.count > 1 ? `${h.count}x 3K` : '3K'}`
 }
 
 // ── Webhook posters ──────────────────────────────────────────────────────────
@@ -349,6 +360,11 @@ export async function notifyDiscordForMatch(
       a: number | null
       d: number | null
       acs: number | null
+      riot_name: string | null
+      two_k: number | null
+      three_k: number | null
+      four_k: number | null
+      aces: number | null
       player: { display_name: string } | null
     }
     type OppRow = {
@@ -369,6 +385,8 @@ export async function notifyDiscordForMatch(
       defuse_time_in_round: number | null
       our_ults_used: number | null
       their_ults_used: number | null
+      clutch_type: string | null
+      clutch_player: string | null
     }
     type KillRow = {
       killer_x: number | null
@@ -381,12 +399,14 @@ export async function notifyDiscordForMatch(
     const [mpRes, rdRes, keRes, oppRes] = await Promise.all([
       supabase
         .from('match_players')
-        .select('player_id, k, a, d, acs, player:players(display_name)')
+        .select(
+          'player_id, k, a, d, acs, riot_name, two_k, three_k, four_k, aces, player:players(display_name)'
+        )
         .eq('match_id', matchUUID),
       supabase
         .from('rounds')
         .select(
-          'round_num, side, outcome, round_type, site, plant_time_in_round, defuse_time_in_round, our_ults_used, their_ults_used'
+          'round_num, side, outcome, round_type, site, plant_time_in_round, defuse_time_in_round, our_ults_used, their_ults_used, clutch_type, clutch_player'
         )
         .eq('match_id', matchUUID),
       supabase
@@ -437,8 +457,23 @@ export async function notifyDiscordForMatch(
       computePlayerAcsDelta(supabase, teamId, matchPlayersForDelta, matchUUID),
     ])
 
-    // Tactical + heatmap — heatmap can run while tactical is computing.
+    // Tactical breakdown + highlights — pure compute over already-fetched rows.
     const tactical = computeTacticalBreakdown(rounds as RoundForBreakdown[])
+    const matchPlayersForHighlights: MatchPlayerForHighlights[] = matchPlayers
+      .filter((mp) => mp.player?.display_name)
+      .map((mp) => ({
+        display_name: mp.player!.display_name,
+        riot_name: mp.riot_name,
+        two_k: mp.two_k,
+        three_k: mp.three_k,
+        four_k: mp.four_k,
+        aces: mp.aces,
+      }))
+    const highlights = computeHighlights(
+      matchPlayersForHighlights,
+      rounds as RoundForHighlights[]
+    )
+
     const heatmapPng = await renderMatchHeatmapPng({
       mapName: match.map_name,
       killEvents: killEvents as HeatmapKillEvent[],
@@ -459,6 +494,7 @@ export async function notifyDiscordForMatch(
       mapHistory,
       playerDeltas: playerDeltas.length ? playerDeltas : null,
       oppScoreboard: oppScoreboard.length ? oppScoreboard : null,
+      highlights: highlights.length ? highlights : null,
       heatmapPng,
     }
 
