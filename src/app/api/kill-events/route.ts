@@ -19,33 +19,58 @@ export type KillEventRow = {
   ts_in_round_ms: number | null
   plant_time_in_round: number | null
   round_outcome: string | null
+  // Part 2 — filter affordances
+  killer_puuid: string | null
+  victim_puuid: string | null
+  opponent_name: string | null
+}
+
+export type RosterEntry = { puuid: string; display_name: string }
+
+export type KillEventsResponse = {
+  events: KillEventRow[]
+  roster: RosterEntry[]
 }
 
 export async function GET(req: Request) {
   const { teamId } = await requireSelectedTeam()
   const url = new URL(req.url)
   const mapParam = url.searchParams.get('map') ?? ''
-  if (!(MAPS as readonly string[]).includes(mapParam)) {
-    return NextResponse.json({ error: 'invalid map' }, { status: 400 })
+  const matchIdParam = url.searchParams.get('match_id') // Part 4 — single-match shortcut
+
+  // Validate inputs: either ?map=... OR ?match_id=...
+  if (!matchIdParam) {
+    if (!(MAPS as readonly string[]).includes(mapParam)) {
+      return NextResponse.json({ error: 'invalid map' }, { status: 400 })
+    }
   }
-  const map = mapParam as Map
+  const map = matchIdParam ? null : (mapParam as Map)
 
   const supabase = createClient()
 
-  // Pull all match ids for this team + map
-  const { data: matches, error: matchErr } = await supabase
+  // Pull match ids — either all for this team+map, or just the one requested
+  let matchesQuery = supabase
     .from('matches')
-    .select('id, match_date')
+    .select('id, match_date, opponent_name')
     .eq('team_id', teamId)
-    .eq('map_name', map)
     .is('deleted_at', null)
+  if (matchIdParam) {
+    matchesQuery = matchesQuery.eq('id', matchIdParam)
+  } else if (map) {
+    matchesQuery = matchesQuery.eq('map_name', map)
+  }
+  const { data: matches, error: matchErr } = await matchesQuery
   if (matchErr) return NextResponse.json({ error: matchErr.message }, { status: 500 })
   const matchIds = (matches ?? []).map((m) => m.id)
   const dateByMatch: Record<string, string | null> = {}
-  for (const m of matches ?? []) dateByMatch[m.id] = m.match_date
+  const oppByMatch: Record<string, string | null> = {}
+  for (const m of matches ?? []) {
+    dateByMatch[m.id] = m.match_date
+    oppByMatch[m.id] = m.opponent_name
+  }
 
   if (matchIds.length === 0) {
-    return NextResponse.json({ events: [] satisfies KillEventRow[] })
+    return NextResponse.json({ events: [], roster: [] } satisfies KillEventsResponse)
   }
 
   // Round-side + plant-time + outcome lookup. Side drives the heatmap side
@@ -69,10 +94,41 @@ export async function GET(req: Request) {
   const { data: events, error: keErr } = await supabase
     .from('kill_events')
     .select(
-      'match_id, round_num, killer_x, killer_y, victim_x, victim_y, killer_is_ours, is_first_blood, weapon_id, headshot, ts_in_round_ms'
+      'match_id, round_num, killer_x, killer_y, victim_x, victim_y, killer_is_ours, is_first_blood, weapon_id, headshot, ts_in_round_ms, killer_puuid, victim_puuid'
     )
     .in('match_id', matchIds)
   if (keErr) return NextResponse.json({ error: keErr.message }, { status: 500 })
+
+  // Roster for the player filter — every linked Riot account on this team
+  // (excludes trial players from team aggregates, matching the rest of the app).
+  const { data: accountRows } = await supabase
+    .from('player_accounts')
+    .select('puuid, players!inner(display_name, team_id, roster_status, is_active)')
+    .eq('players.team_id', teamId)
+    .not('puuid', 'is', null)
+
+  const rosterMap = new Map<string, string>()
+  // Supabase's nested-select infers `players` as an array (1:N from its FK perspective)
+  // even though our FK is 1:1. Unwrap defensively.
+  for (const a of (accountRows ?? []) as unknown as Array<{
+    puuid: string | null
+    players:
+      | { display_name: string; roster_status: string | null; is_active: boolean | null }[]
+      | { display_name: string; roster_status: string | null; is_active: boolean | null }
+      | null
+  }>) {
+    if (!a.puuid) continue
+    const p = Array.isArray(a.players) ? a.players[0] : a.players
+    if (!p) continue
+    if (p.roster_status === 'trial') continue
+    if (p.is_active === false) continue
+    // First puuid per name wins — later ones (alt accounts) get same label so it's fine to dedupe by puuid.
+    rosterMap.set(a.puuid, p.display_name)
+  }
+  const roster: RosterEntry[] = Array.from(rosterMap, ([puuid, display_name]) => ({
+    puuid,
+    display_name,
+  })).sort((a, b) => a.display_name.localeCompare(b.display_name))
 
   const rows: KillEventRow[] = (events ?? []).map((e) => {
     const key = `${e.match_id}|${e.round_num}`
@@ -92,8 +148,11 @@ export async function GET(req: Request) {
       ts_in_round_ms: e.ts_in_round_ms,
       plant_time_in_round: plantByKey[key] ?? null,
       round_outcome: outcomeByKey[key] ?? null,
+      killer_puuid: e.killer_puuid,
+      victim_puuid: e.victim_puuid,
+      opponent_name: oppByMatch[e.match_id] ?? null,
     }
   })
 
-  return NextResponse.json({ events: rows })
+  return NextResponse.json({ events: rows, roster } satisfies KillEventsResponse)
 }
