@@ -16,6 +16,16 @@
 import { Resvg } from '@resvg/resvg-js'
 import { MAP_RADARS, gameCoordToRadar } from '@/lib/valorant-maps'
 import type { Map as ValMap } from '@/lib/valorant'
+import {
+  buildDensityLayersString,
+  type DensityLayer,
+  type DensityPoint,
+} from '@/lib/density-svg'
+
+export type HeatmapMode = 'dots' | 'density' | 'auto'
+
+// Same threshold as the in-app heatmap — once N exceeds this, dots become soup.
+const DENSITY_AUTO_THRESHOLD = 50
 
 export type HeatmapKillEvent = {
   killer_x: number | null
@@ -85,15 +95,21 @@ function cacheSet(key: string, buf: Buffer): void {
 export async function renderMatchHeatmapPng(opts: {
   mapName: string | null
   killEvents: HeatmapKillEvent[]
+  /** Render mode. 'auto' picks density when N > DENSITY_AUTO_THRESHOLD. Default 'auto'. */
+  mode?: HeatmapMode
 }): Promise<Buffer | null> {
   const { mapName, killEvents } = opts
+  const mode: HeatmapMode = opts.mode ?? 'auto'
 
   if (!mapName) return null
   const radar = MAP_RADARS[mapName as ValMap]
   if (!radar) return null
   if (!killEvents.length) return null
 
-  const cacheKey = fingerprintKillEvents(mapName, killEvents)
+  // Cache key includes the resolved mode so dots and density variants don't collide.
+  const effectiveMode: 'dots' | 'density' =
+    mode === 'auto' ? (killEvents.length > DENSITY_AUTO_THRESHOLD ? 'density' : 'dots') : mode
+  const cacheKey = `${effectiveMode}::${fingerprintKillEvents(mapName, killEvents)}`
   const cached = cacheGet(cacheKey)
   if (cached) return cached
 
@@ -103,25 +119,48 @@ export async function renderMatchHeatmapPng(opts: {
     const radarBuf = Buffer.from(await radarRes.arrayBuffer())
     const radarDataUrl = `data:image/png;base64,${radarBuf.toString('base64')}`
 
-    // victim position = where the bullet landed; color by killer_is_ours.
-    // Matches the in-app "all kills" mode from MapHeatmap.tsx.
-    const circles: string[] = []
-    for (const e of killEvents) {
-      if (e.victim_x == null || e.victim_y == null) continue
-      const { x, y } = gameCoordToRadar(e.victim_x, e.victim_y, radar)
-      if (x < -0.05 || x > 1.05 || y < -0.05 || y > 1.05) continue
-      const color = e.killer_is_ours ? OUR_KILL_COLOR : OUR_DEATH_COLOR
-      circles.push(
-        `<circle cx="${x.toFixed(4)}" cy="${y.toFixed(4)}" r="${DOT_RADIUS}" fill="${color}" opacity="${DOT_OPACITY}" />`
-      )
-    }
+    let overlayMarkup: string
 
-    if (circles.length === 0) return null
+    if (effectiveMode === 'density') {
+      // Two-layer density: green for our kills, crimson for our deaths.
+      const killsPts: DensityPoint[] = []
+      const deathsPts: DensityPoint[] = []
+      for (const e of killEvents) {
+        if (e.victim_x == null || e.victim_y == null) continue
+        const { x, y } = gameCoordToRadar(e.victim_x, e.victim_y, radar)
+        if (x < -0.05 || x > 1.05 || y < -0.05 || y > 1.05) continue
+        if (e.killer_is_ours) killsPts.push({ x, y })
+        else deathsPts.push({ x, y })
+      }
+      if (killsPts.length === 0 && deathsPts.length === 0) return null
+      const layers: DensityLayer[] = []
+      if (killsPts.length > 0) {
+        layers.push({ filterId: 'kills', color: OUR_KILL_COLOR, points: killsPts })
+      }
+      if (deathsPts.length > 0) {
+        layers.push({ filterId: 'deaths', color: OUR_DEATH_COLOR, points: deathsPts })
+      }
+      overlayMarkup = buildDensityLayersString(layers)
+    } else {
+      // Dots — original rendering, color by killer_is_ours.
+      const circles: string[] = []
+      for (const e of killEvents) {
+        if (e.victim_x == null || e.victim_y == null) continue
+        const { x, y } = gameCoordToRadar(e.victim_x, e.victim_y, radar)
+        if (x < -0.05 || x > 1.05 || y < -0.05 || y > 1.05) continue
+        const color = e.killer_is_ours ? OUR_KILL_COLOR : OUR_DEATH_COLOR
+        circles.push(
+          `<circle cx="${x.toFixed(4)}" cy="${y.toFixed(4)}" r="${DOT_RADIUS}" fill="${color}" opacity="${DOT_OPACITY}" />`
+        )
+      }
+      if (circles.length === 0) return null
+      overlayMarkup = circles.join('\n  ')
+    }
 
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${OUTPUT_WIDTH}" height="${OUTPUT_WIDTH}" viewBox="0 0 1 1">
   <rect x="0" y="0" width="1" height="1" fill="#0a0a0a" />
   <image href="${radarDataUrl}" x="0" y="0" width="1" height="1" opacity="${RADAR_OVERLAY_OPACITY}" preserveAspectRatio="xMidYMid slice" />
-  ${circles.join('\n  ')}
+  ${overlayMarkup}
 </svg>`
 
     const png = new Resvg(svg, {
