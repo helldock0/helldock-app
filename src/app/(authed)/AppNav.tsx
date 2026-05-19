@@ -7,6 +7,7 @@ import GlobalSearch from './GlobalSearch'
 const LINKS = [
   { href: '/', label: 'Home', match: (p: string) => p === '/' },
   { href: '/matches', label: 'Matches', match: (p: string) => p.startsWith('/matches') && p !== '/matches/new' },
+  { href: '/calendar', label: 'Calendar', match: (p: string) => p.startsWith('/calendar') },
   { href: '/analytics', label: 'Analytics', match: (p: string) => p.startsWith('/analytics') },
   { href: '/trends', label: 'Trends', match: (p: string) => p.startsWith('/trends') },
   { href: '/import', label: 'Import', match: (p: string) => p.startsWith('/import') },
