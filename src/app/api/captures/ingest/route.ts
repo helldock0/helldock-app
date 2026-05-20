@@ -40,7 +40,8 @@ export async function POST(req: Request) {
   })
 
   if (result.status === 'error') {
-    return NextResponse.json({ status: 'error', error: result.error }, { status: 502 })
+    const status = result.upstreamStatus === 404 ? 404 : 502
+    return NextResponse.json({ status: 'error', error: result.error }, { status })
   }
 
   return NextResponse.json({

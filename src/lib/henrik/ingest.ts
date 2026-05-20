@@ -7,7 +7,7 @@ import { notifyDiscordForMatch } from '@/lib/discord'
 export type IngestResult =
   | { status: 'ingested'; helldockId: string; matchUUID: string }
   | { status: 'duplicate'; helldockId: string; matchUUID: string }
-  | { status: 'error'; error: string }
+  | { status: 'error'; error: string; upstreamStatus?: number }
 
 export type IngestSource = 'manual_import' | 'capture_agent'
 
@@ -75,12 +75,14 @@ export async function ingestMatch(opts: IngestOpts): Promise<IngestResult> {
   // Pull raw match from Henrik if caller didn't supply one (capture-agent path).
   let rawMatch = opts.rawMatch
   if (!rawMatch) {
-    const result = await fetchMatchByIdV4(henrikId, teamConfig.mainAccount.region)
+    const apiKey = process.env.HENRIKDEV_API_KEY ?? process.env.HENRIK_API_KEY ?? ''
+    const result = await fetchMatchByIdV4(henrikId, teamConfig.mainAccount.region, apiKey)
     if (!result?.metadata) {
       const errMsg =
         result?.errors?.[0]?.message ??
         (typeof result?.status === 'number' ? `HTTP ${result.status}` : 'unknown')
-      return { status: 'error', error: `Henrik V4 fetch failed: ${errMsg}` }
+      const upstreamStatus = typeof result?.status === 'number' ? result.status : undefined
+      return { status: 'error', error: `Henrik V4 fetch failed: ${errMsg}`, upstreamStatus }
     }
     rawMatch = result
   }
