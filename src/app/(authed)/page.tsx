@@ -14,6 +14,15 @@ import {
 } from '@/lib/dashboard'
 import { computeWeeklyRetro, type TrendsMatchPlayer } from '@/lib/trends'
 import { requireSelectedTeam } from '@/lib/team-session'
+import {
+  computeCrossMatchReviewQueue,
+  type ReviewQueueRound,
+  type DashboardReviewItem,
+} from '@/lib/review-queue'
+import {
+  trainWinProbability,
+  type WPRound,
+} from '@/lib/win-probability'
 
 export const dynamic = 'force-dynamic'
 
@@ -97,6 +106,56 @@ function dash(n: number | null | undefined, suffix = ''): string {
   return `${n}${suffix}`
 }
 
+function ReviewQueueRow({ item }: { item: DashboardReviewItem }) {
+  const sideShort =
+    item.side === 'Attack' ? 'ATT' : item.side === 'Defense' ? 'DEF' : '—'
+  const outcomeColor =
+    item.outcome === 'W' ? 'text-win-green' : 'text-crimson'
+  const topReason = item.reasons[0]?.text ?? '—'
+  const scorePct = Math.round(item.score * 100)
+  const href = `/matches/${encodeURIComponent(item.matchIdHelldock)}?tab=Rounds&round=${item.roundNum}`
+
+  return (
+    <Link href={href} className="block focus:outline-none group">
+      <div className="px-5 py-3.5 flex items-center gap-4 hover:bg-surface-3 transition-colors">
+        {/* Score badge */}
+        <div className="shrink-0 w-12 text-center">
+          <div className="text-lg font-bold font-mono text-gold tnum leading-tight">
+            {scorePct}
+          </div>
+          <div className="text-2xs uppercase tracking-wider text-muted-2">score</div>
+        </div>
+        {/* Match + round identifier */}
+        <div className="shrink-0 w-40">
+          <div className="text-sm font-mono text-fg tabular-nums">
+            {item.matchIdHelldock} · R{item.roundNum}
+          </div>
+          <div className="text-xs text-muted truncate">
+            {item.mapName ?? '—'} {item.opponentName ? `· ${item.opponentName}` : ''}
+          </div>
+        </div>
+        {/* Side + outcome chips */}
+        <div className="shrink-0 flex items-center gap-2 w-24">
+          <span className="text-xs font-bold uppercase tracking-wider text-muted-2">{sideShort}</span>
+          <span className={`text-sm font-bold ${outcomeColor}`}>
+            {item.outcome}
+          </span>
+          {item.coachGrade == null && (
+            <span className="text-2xs text-gold opacity-80 uppercase tracking-wider">ungr</span>
+          )}
+        </div>
+        {/* Top reason */}
+        <div className="flex-1 min-w-0 text-sm text-muted truncate">
+          {topReason}
+        </div>
+        <span className="shrink-0 text-xs text-muted-2 group-hover:text-gold transition-colors">
+          ▶
+        </span>
+      </div>
+    </Link>
+  )
+}
+
 function WatchCard({ item }: { item: WatchItem }) {
   const isAlert = item.severity === 'alert'
   const accent = isAlert ? 'before:bg-crimson/80' : 'before:bg-gold/70'
@@ -155,7 +214,9 @@ export default async function HomePage() {
     matchIds.length > 0
       ? supabase
           .from('rounds')
-          .select('match_id, round_num, half, side, round_type, outcome, first_blood, clutch_type, clutch_player, site')
+          .select(
+            'match_id, round_num, half, side, round_type, outcome, first_blood, clutch_type, clutch_player, site, our_econ, their_econ, coach_grade, coach_tags'
+          )
           .in('match_id', matchIds)
       : Promise.resolve({ data: [] }),
     matchIds.length > 0
@@ -215,6 +276,58 @@ export default async function HomePage() {
   const oppIntel = computeOppIntel(matches)
   const entry = computeEntry(rounds)
   const watchList = computeWatchList(matches, rounds, matchPlayers)
+
+  // Review queue across the last 3 matches. Trains a one-shot WP model from
+  // all historical rounds (same flow as `/matches/[id]`) and ranks rounds
+  // worth a second look. Capped at 5 globally so the card stays scannable.
+  const wpHistorical: WPRound[] = rounds.map((r) => ({
+    match_id: r.match_id,
+    round_num: r.round_num,
+    side: r.side,
+    outcome: r.outcome,
+    round_type: r.round_type,
+    our_econ: r.our_econ ?? null,
+    their_econ: r.their_econ ?? null,
+  }))
+  const wpModel = trainWinProbability(wpHistorical)
+
+  const matchesByDate = matches.slice().sort((a, b) =>
+    b.match_date.localeCompare(a.match_date)
+  )
+  const last3Matches = matchesByDate.slice(0, 3)
+  const last3MatchIds = new Set(last3Matches.map((m) => m.id))
+  const roundsByMatch = new Map<string, ReviewQueueRound[]>()
+  for (const r of rounds) {
+    if (!last3MatchIds.has(r.match_id)) continue
+    const bucket = roundsByMatch.get(r.match_id) ?? []
+    bucket.push({
+      round_num: r.round_num,
+      side: r.side,
+      outcome: r.outcome,
+      round_type: r.round_type,
+      our_econ: r.our_econ ?? null,
+      their_econ: r.their_econ ?? null,
+      first_blood: r.first_blood,
+      clutch_type: r.clutch_type,
+      clutch_player: r.clutch_player,
+      coach_grade: r.coach_grade ?? null,
+      coach_tags: r.coach_tags ?? null,
+    })
+    roundsByMatch.set(r.match_id, bucket)
+  }
+  const reviewQueue: DashboardReviewItem[] = computeCrossMatchReviewQueue({
+    matches: last3Matches.map((m) => ({
+      match_id_helldock: m.match_id_helldock,
+      match_date: m.match_date,
+      opponent_name: m.opponent_name,
+      map_name: m.map_name,
+      result: m.result,
+      rounds: roundsByMatch.get(m.id) ?? [],
+    })),
+    wpWeights: wpModel?.weights ?? null,
+    topN: 5,
+    perMatchCap: 3,
+  })
 
   // Weekly retro for the trend-alert strip (only renders when |Δwr| ≥ 3pp).
   // Trends compute needs player_id present — orphans get filtered out.
@@ -303,6 +416,22 @@ export default async function HomePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {watchList.map((item) => (
               <WatchCard key={item.id} item={item} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Zone 1.6 — REVIEW QUEUE (last 3 matches) */}
+      {reviewQueue.length > 0 && (
+        <section className="mb-7">
+          <ZoneHeader
+            title="Review queue"
+            accent="gold"
+            hint={`top ${reviewQueue.length} across last ${last3Matches.length} match${last3Matches.length === 1 ? '' : 'es'}`}
+          />
+          <div className="bg-surface-2 rounded-2xl border border-line-strong/40 divide-y divide-line">
+            {reviewQueue.map((item) => (
+              <ReviewQueueRow key={`${item.matchIdHelldock}-${item.roundNum}`} item={item} />
             ))}
           </div>
         </section>

@@ -53,4 +53,13 @@
   ::-webkit-scrollbar-thumb:hover {
     background: #3C3C44;
   }
+
+  /* Deep-link row flash — Review-queue "Jump to round" lands the user here */
+  @keyframes flash-gold {
+    0%, 100% { background-color: transparent; }
+    20%, 60% { background-color: rgba(255, 215, 0, 0.35); }
+  }
+  .flash-gold {
+    animation: flash-gold 2s ease-out 1;
+  }
 }

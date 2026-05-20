@@ -7,13 +7,30 @@ import {
   computeMatchWinProbabilities,
   type WPRound,
 } from '@/lib/win-probability'
+import {
+  computeReviewQueue,
+  type ReviewQueueRound,
+} from '@/lib/review-queue'
+
+const VALID_TABS = ['Review', 'Overview', 'Rounds', 'Heatmap', 'Players', 'Opp Players'] as const
+type ValidTab = (typeof VALID_TABS)[number]
+
+function parseTab(raw: string | undefined): ValidTab | undefined {
+  return VALID_TABS.find((t) => t === raw)
+}
+
+function parseRound(raw: string | undefined): number | undefined {
+  if (!raw) return undefined
+  const n = Number(raw)
+  return Number.isFinite(n) && n >= 1 ? n : undefined
+}
 
 export default async function MatchDetailPage({
   params,
   searchParams,
 }: {
   params: { matchId: string }
-  searchParams: { edit?: string }
+  searchParams: { edit?: string; tab?: string; round?: string }
 }) {
   const { teamId } = await requireSelectedTeam()
   const supabase = createClient()
@@ -93,6 +110,28 @@ export default async function MatchDetailPage({
       )
     : []
 
+  // Review queue — composes WP surprise/leverage with clutch/grade/tag signals
+  // into a top-5 "look here first" list. Pure compute, no extra DB round-trip.
+  const reviewItems = computeReviewQueue({
+    rounds: (rounds ?? []).map(
+      (r): ReviewQueueRound => ({
+        round_num: r.round_num,
+        side: r.side,
+        outcome: r.outcome,
+        round_type: r.round_type,
+        our_econ: r.our_econ,
+        their_econ: r.their_econ,
+        first_blood: r.first_blood,
+        clutch_type: r.clutch_type,
+        clutch_player: r.clutch_player,
+        coach_grade: r.coach_grade,
+        coach_tags: r.coach_tags,
+      })
+    ),
+    wpWeights: wpModel?.weights ?? null,
+    topN: 5,
+  })
+
   return (
     <MatchDetail
       match={match}
@@ -100,8 +139,12 @@ export default async function MatchDetailPage({
       matchPlayers={matchPlayers ?? []}
       oppPlayers={oppPlayers ?? []}
       initialEdit={searchParams.edit === '1'}
+      initialTab={parseTab(searchParams.tab)}
+      initialFlashRound={parseRound(searchParams.round)}
       roundWPs={wpForThisMatch}
       killEvents={killEvents ?? []}
+      reviewItems={reviewItems}
+      wpModelTrainSize={wpModel?.trainSize ?? 0}
       rosterOptions={(rosterPlayers ?? []).map((p) => ({
         id: p.id,
         display_name: p.display_name,

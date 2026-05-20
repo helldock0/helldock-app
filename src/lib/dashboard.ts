@@ -32,6 +32,9 @@ export type DashRound = {
   coach_tags?: string[] | null
   // S13 — trade cohesion (optional)
   was_traded?: boolean | null
+  // Review-queue / WP inputs (optional — only the dashboard fetches econ today)
+  our_econ?: number | null
+  their_econ?: number | null
 }
 
 export type DashMatchPlayer = {

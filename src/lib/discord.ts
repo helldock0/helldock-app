@@ -27,6 +27,13 @@ import {
   renderMatchHeatmapPng,
   type HeatmapKillEvent,
 } from '@/lib/discord-heatmap'
+import {
+  computeReviewQueue,
+  formatReviewQueueForDiscord,
+  type ReviewItem,
+  type ReviewQueueRound,
+} from '@/lib/review-queue'
+import { trainWinProbability, type WPRound } from '@/lib/win-probability'
 
 export type DiscordMatchSummary = {
   // ── header ──
@@ -52,6 +59,9 @@ export type DiscordMatchSummary = {
 
   // ── highlights (multi-kills + clutches) ──
   highlights: Highlight[] | null
+
+  // ── review queue (top 3 rounds worth a second look) ──
+  reviewItems: ReviewItem[] | null
 
   // ── heatmap (set only when image is attached) ──
   heatmapPng: Buffer | null
@@ -131,6 +141,15 @@ export function buildMatchEmbed(s: DiscordMatchSummary) {
     fields.push({
       name: 'Highlights',
       value: s.highlights.map(formatHighlight).join(' · '),
+      inline: false,
+    })
+  }
+
+  // Review queue — algorithmic top rounds worth a second look. One line each.
+  if (s.reviewItems && s.reviewItems.length) {
+    fields.push({
+      name: '🔎 Review queue',
+      value: '```\n' + formatReviewQueueForDiscord(s.reviewItems) + '\n```',
       inline: false,
     })
   }
@@ -315,6 +334,97 @@ async function postMatchToDiscordMultipart(
   }
 }
 
+// ── Review queue compute (Discord-side wrapper) ──────────────────────────────
+
+type ReviewRoundRow = {
+  round_num: number | null
+  side: string | null
+  outcome: string | null
+  round_type: string | null
+  our_econ: number | null
+  their_econ: number | null
+  first_blood: string | null
+  clutch_type: string | null
+  clutch_player: string | null
+  coach_grade: number | null
+  coach_tags: string[] | null
+}
+
+/**
+ * Train a one-shot WP model on the team's historical rounds and run the
+ * review-queue compute against the just-inserted match. Returns top 3 for
+ * the Discord field (in-app surface uses top 5). Failures swallow to [].
+ */
+async function computeMatchReviewItems(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient | any,
+  teamId: string,
+  matchUUID: string,
+  rounds: ReviewRoundRow[]
+): Promise<ReviewItem[]> {
+  try {
+    // Pull the team's full historical rounds for WP training. Small payload
+    // (~500 rows × 7 cols) and the training itself is sub-50ms per the WP
+    // model's own perf note.
+    const { data: hist } = await supabase
+      .from('rounds')
+      .select('match_id, round_num, side, outcome, round_type, our_econ, their_econ, match:matches!inner(team_id, deleted_at)')
+      .eq('match.team_id', teamId)
+      .is('match.deleted_at', null)
+    type HistRow = {
+      match_id: string
+      round_num: number
+      side: string | null
+      outcome: string | null
+      round_type: string | null
+      our_econ: number | null
+      their_econ: number | null
+    }
+    const wpHistorical: WPRound[] = ((hist ?? []) as HistRow[]).map((r) => ({
+      match_id: r.match_id,
+      round_num: r.round_num,
+      side: r.side,
+      outcome: r.outcome,
+      round_type: r.round_type,
+      our_econ: r.our_econ,
+      their_econ: r.their_econ,
+    }))
+    const wpModel = trainWinProbability(wpHistorical)
+
+    // Map the just-inserted match's rounds onto the queue input shape.
+    // Drop null round_num rows (extremely rare; manual-entry placeholder).
+    const queueRounds: ReviewQueueRound[] = rounds
+      .filter((r): r is ReviewRoundRow & { round_num: number } => r.round_num != null)
+      .map((r) => ({
+        round_num: r.round_num,
+        side: r.side,
+        outcome: r.outcome,
+        round_type: r.round_type,
+        our_econ: r.our_econ,
+        their_econ: r.their_econ,
+        first_blood: r.first_blood,
+        clutch_type: r.clutch_type,
+        clutch_player: r.clutch_player,
+        coach_grade: r.coach_grade,
+        coach_tags: r.coach_tags,
+      }))
+
+    return computeReviewQueue({
+      rounds: queueRounds,
+      wpWeights: wpModel?.weights ?? null,
+      topN: 3,
+    })
+  } catch (e) {
+    console.warn(
+      `[discord] review-queue compute failed: ${e instanceof Error ? e.message : String(e)}`
+    )
+    // Side-effects in the catch path are fine for Discord — match insert is
+    // already committed; this is best-effort enrichment of the recap.
+    void matchUUID // unused-but-typed
+    return []
+  }
+}
+
 // ── notifyDiscordForMatch ────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -384,6 +494,11 @@ export async function notifyDiscordForMatch(
       their_ults_used: number | null
       clutch_type: string | null
       clutch_player: string | null
+      first_blood: string | null
+      our_econ: number | null
+      their_econ: number | null
+      coach_grade: number | null
+      coach_tags: string[] | null
     }
     type KillRow = {
       killer_x: number | null
@@ -403,7 +518,7 @@ export async function notifyDiscordForMatch(
       supabase
         .from('rounds')
         .select(
-          'round_num, side, outcome, round_type, site, plant_time_in_round, defuse_time_in_round, our_ults_used, their_ults_used, clutch_type, clutch_player'
+          'round_num, side, outcome, round_type, site, plant_time_in_round, defuse_time_in_round, our_ults_used, their_ults_used, clutch_type, clutch_player, first_blood, our_econ, their_econ, coach_grade, coach_tags'
         )
         .eq('match_id', matchUUID),
       supabase
@@ -477,6 +592,17 @@ export async function notifyDiscordForMatch(
       mode: 'dots',
     })
 
+    // Review queue — trains a one-shot WP model from the team's historical
+    // rounds, then ranks the just-inserted match's rounds by review-relevance.
+    // Discord field shows the top 3. Failures here are non-fatal — the recap
+    // still posts without the queue.
+    const reviewItems = await computeMatchReviewItems(
+      supabase,
+      teamId,
+      matchUUID,
+      rounds
+    )
+
     const summary: DiscordMatchSummary = {
       matchIdHelldock: match.match_id_helldock,
       matchUrl: `${baseUrl.replace(/\/+$/, '')}/matches/${match.match_id_helldock}`,
@@ -492,6 +618,7 @@ export async function notifyDiscordForMatch(
       playerDeltas: playerDeltas.length ? playerDeltas : null,
       oppScoreboard: oppScoreboard.length ? oppScoreboard : null,
       highlights: highlights.length ? highlights : null,
+      reviewItems: reviewItems.length ? reviewItems : null,
       heatmapPng,
     }
 

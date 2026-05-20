@@ -1,13 +1,15 @@
 'use client'
 
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import ScoreProgressionChart from '@/components/charts/ScoreProgressionChart'
 import EconomyCurveChart from '@/components/charts/EconomyCurveChart'
 import WinProbCurve from '@/components/charts/WinProbCurve'
 import MatchHeatmap, { type MatchHeatmapEvent } from './MatchHeatmap'
 import { MATCH_TYPES } from '@/lib/valorant'
+import ReviewItemCard from './ReviewItemCard'
+import type { ReviewItem } from '@/lib/review-queue'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -519,12 +521,23 @@ function CoachTagsCell({
   )
 }
 
-function RoundsTab({ rounds, editMode, onRoundChange, roundWPs = [] }: {
+function RoundsTab({ rounds, editMode, onRoundChange, roundWPs = [], flashRoundNum }: {
   rounds: Round[]
   editMode: boolean
   onRoundChange: (id: string, field: string, value: unknown) => void
   roundWPs?: RoundWP[]
+  flashRoundNum?: number
 }) {
+  const flashRowRef = useRef<HTMLTableRowElement | null>(null)
+
+  // Scroll the flashed row into view when the parent sets flashRoundNum. The
+  // animation itself is driven by the `flash-gold` CSS class below.
+  useEffect(() => {
+    if (flashRoundNum != null && flashRowRef.current) {
+      flashRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [flashRoundNum])
+
   const wpByRound: Record<number, number> = {}
   for (const w of roundWPs) wpByRound[w.round_num] = w.wpPct
   if (rounds.length === 0) return <EmptyState label="rounds" />
@@ -555,8 +568,14 @@ function RoundsTab({ rounds, editMode, onRoundChange, roundWPs = [] }: {
           </tr>
         </thead>
         <tbody>
-          {rounds.map((r, i) => (
-            <tr key={r.id} className={`${i % 2 === 0 ? 'bg-[#2C2C32]' : 'bg-[#28282E]'} hover:bg-[#35353C]`}>
+          {rounds.map((r, i) => {
+            const isFlashed = flashRoundNum === r.round_num
+            return (
+            <tr
+              key={r.id}
+              ref={isFlashed ? flashRowRef : undefined}
+              className={`${i % 2 === 0 ? 'bg-[#2C2C32]' : 'bg-[#28282E]'} hover:bg-[#35353C] ${isFlashed ? 'flash-gold' : ''}`}
+            >
               <td className="px-3 py-1.5 font-mono text-[#6B7280]">{r.round_num}</td>
               <td className="px-3 py-1.5">{fmt(r.half)}</td>
               <td className="px-3 py-1.5">{fmt(r.side)}</td>
@@ -654,7 +673,8 @@ function RoundsTab({ rounds, editMode, onRoundChange, roundWPs = [] }: {
                 />
               </td>
             </tr>
-          ))}
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -941,7 +961,7 @@ function OppPlayersTab({ players, editMode, onOppPlayerChange }: {
 
 // ── Main ───────────────────────────────────────────────────────────────────
 
-const TABS = ['Overview', 'Rounds', 'Heatmap', 'Players', 'Opp Players'] as const
+const TABS = ['Review', 'Overview', 'Rounds', 'Heatmap', 'Players', 'Opp Players'] as const
 type Tab = (typeof TABS)[number]
 
 export type RoundWP = {
@@ -956,8 +976,12 @@ export default function MatchDetail({
   matchPlayers: initialMatchPlayers,
   oppPlayers: initialOppPlayers,
   initialEdit = false,
+  initialTab,
+  initialFlashRound,
   roundWPs = [],
   killEvents = [],
+  reviewItems = [],
+  wpModelTrainSize = 0,
   rosterOptions = [],
 }: {
   match: Match
@@ -965,13 +989,62 @@ export default function MatchDetail({
   matchPlayers: MatchPlayer[]
   oppPlayers: OppPlayer[]
   initialEdit?: boolean
+  initialTab?: Tab
+  initialFlashRound?: number
   roundWPs?: RoundWP[]
   killEvents?: MatchHeatmapEvent[]
+  reviewItems?: ReviewItem[]
+  wpModelTrainSize?: number
   rosterOptions?: RosterOption[]
 }) {
-  const [tab, setTab] = useState<Tab>('Overview')
+  // Default tab: explicit URL param > Review (if items exist) > Overview.
+  // Lands the coach on the "you should look at these" view when there's
+  // something worth looking at; otherwise falls back to familiar Overview.
+  const defaultTab: Tab =
+    initialTab ?? (reviewItems.length > 0 ? 'Review' : 'Overview')
+
+  const router = useRouter()
+  const pathname = usePathname()
+
+  const [tab, setTabState] = useState<Tab>(defaultTab)
+  const [flashRound, setFlashRound] = useState<number | undefined>(initialFlashRound)
   const [editMode, setEditMode] = useState(initialEdit)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+
+  // Sync tab changes to the URL so deep-links share + back-button works.
+  // `router.replace` avoids polluting the history stack with one entry per
+  // tab click.
+  const setTab = useCallback(
+    (next: Tab, opts?: { flashRound?: number }) => {
+      setTabState(next)
+      if (opts?.flashRound != null) setFlashRound(opts.flashRound)
+      const params = new URLSearchParams()
+      // Default tab (Overview, or Review when items exist) doesn't need a
+      // querystring — keeps URLs clean for the common case.
+      if (next !== defaultTab) params.set('tab', next)
+      if (opts?.flashRound != null) params.set('round', String(opts.flashRound))
+      const qs = params.toString()
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    },
+    [router, pathname, defaultTab]
+  )
+
+  // Clear the flash highlight after 2.2s so a follow-up "Jump to round" on
+  // the same row re-triggers the animation. The CSS animation runs once via
+  // `animation-iteration-count: 1`; restarting it requires the class to be
+  // removed then re-added.
+  useEffect(() => {
+    if (flashRound == null) return
+    const t = setTimeout(() => setFlashRound(undefined), 2200)
+    return () => clearTimeout(t)
+  }, [flashRound])
+
+  const handleJumpToRound = useCallback(
+    (roundNum: number) => {
+      setTab('Rounds', { flashRound: roundNum })
+    },
+    [setTab]
+  )
 
   const [localMatch, setLocalMatch] = useState(initialMatch)
   const [localRounds, setLocalRounds] = useState(initialRounds)
@@ -1152,6 +1225,9 @@ export default function MatchDetail({
             }`}
           >
             {t}
+            {t === 'Review' && reviewItems.length > 0 && (
+              <span className="ml-1.5 text-xs opacity-60">{reviewItems.length}</span>
+            )}
             {t === 'Rounds' && localRounds.length > 0 && (
               <span className="ml-1.5 text-xs opacity-60">{localRounds.length}</span>
             )}
@@ -1169,11 +1245,19 @@ export default function MatchDetail({
       </div>
 
       {/* Tab content */}
+      {tab === 'Review' && (
+        <ReviewTab
+          items={reviewItems}
+          matchIdHelldock={localMatch.match_id_helldock}
+          wpTrainSize={wpModelTrainSize}
+          onJumpToRound={handleJumpToRound}
+        />
+      )}
       {tab === 'Overview' && (
         <OverviewTab match={localMatch} rounds={localRounds} editMode={editMode} onMatchChange={handleMatchChange} roundWPs={roundWPs} />
       )}
       {tab === 'Rounds' && (
-        <RoundsTab rounds={localRounds} editMode={editMode} onRoundChange={handleRoundChange} roundWPs={roundWPs} />
+        <RoundsTab rounds={localRounds} editMode={editMode} onRoundChange={handleRoundChange} roundWPs={roundWPs} flashRoundNum={flashRound} />
       )}
       {tab === 'Heatmap' && (
         <div className="py-2">
@@ -1186,6 +1270,61 @@ export default function MatchDetail({
       {tab === 'Opp Players' && (
         <OppPlayersTab players={localOppPlayers} editMode={editMode} onOppPlayerChange={handleOppChange} />
       )}
+    </div>
+  )
+}
+
+// ── Review tab ─────────────────────────────────────────────────────────────
+
+function ReviewTab({
+  items,
+  matchIdHelldock,
+  wpTrainSize,
+  onJumpToRound,
+}: {
+  items: ReviewItem[]
+  matchIdHelldock: string
+  wpTrainSize: number
+  onJumpToRound: (roundNum: number) => void
+}) {
+  if (items.length === 0) {
+    return (
+      <div className="bg-[#2C2C32] rounded-xl p-8 text-center text-[#6B7280] text-sm">
+        no rounds flagged for review — nothing here looks anomalous
+      </div>
+    )
+  }
+
+  // Heuristic: under ~150 historical W/L rounds the logistic model is too
+  // shaky for its surprise values to drive prioritization. Items still load
+  // (from coach grades + clutch + tags) but the badge tells the coach to
+  // discount the WP-derived reasons.
+  const lowConfidenceWP = wpTrainSize > 0 && wpTrainSize < 150
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-[0.7rem] font-bold uppercase tracking-[0.22em] text-fg/90">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-gold mr-2 align-middle" />
+          Review queue
+        </h3>
+        <span className="text-2xs text-muted-2 uppercase tracking-wider">
+          top {items.length} round{items.length === 1 ? '' : 's'} worth a look
+          {lowConfidenceWP && (
+            <span className="ml-2 text-[#FFD700] opacity-80 normal-case tracking-normal">
+              · (low-confidence WP, {wpTrainSize} rounds trained)
+            </span>
+          )}
+        </span>
+      </div>
+      {items.map((item) => (
+        <ReviewItemCard
+          key={item.roundNum}
+          item={item}
+          matchIdHelldock={matchIdHelldock}
+          onJumpToRound={onJumpToRound}
+        />
+      ))}
     </div>
   )
 }
