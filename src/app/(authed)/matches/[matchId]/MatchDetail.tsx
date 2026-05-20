@@ -7,6 +7,7 @@ import ScoreProgressionChart from '@/components/charts/ScoreProgressionChart'
 import EconomyCurveChart from '@/components/charts/EconomyCurveChart'
 import WinProbCurve from '@/components/charts/WinProbCurve'
 import MatchHeatmap, { type MatchHeatmapEvent } from './MatchHeatmap'
+import { MATCH_TYPES } from '@/lib/valorant'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -334,7 +335,8 @@ function OverviewTab({ match, rounds, editMode, onMatchChange, roundWPs }: {
           <EI type="date" value={match.match_date} onChange={v => onMatchChange('match_date', v || match.match_date)} />
         </EF>
         <EF label="Type">
-          <EI value={match.match_type} onChange={v => onMatchChange('match_type', str(v))} placeholder="Scrim / Premier" />
+          <ES value={match.match_type} onChange={v => onMatchChange('match_type', str(v))}
+            opts={MATCH_TYPES.map(t => [t, t] as [string, string])} />
         </EF>
         <EF label="Session #">
           <EI type="number" value={match.session_num} onChange={v => onMatchChange('session_num', num(v))} />

@@ -9,19 +9,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   computeTacticalBreakdown,
-  computeStreakForMatch,
-  computeMapHistory,
-  computePlayerAcsDelta,
-  computeHighlights,
   type TacticalBreakdown,
-  type StreakForMatch,
-  type MapHistorySnapshot,
-  type PlayerDelta,
-  type OppScoreboardLine,
-  type Highlight,
   type RoundForBreakdown,
-  type RoundForHighlights,
-  type MatchPlayerForHighlights,
 } from '@/lib/discord-compute'
 import {
   renderMatchHeatmapPng,
@@ -39,19 +28,8 @@ export type DiscordMatchSummary = {
   oppScore: number | null
   result: 'W' | 'L' | null
 
-  // ── tactical ──
+  // ── tactical (1-line summary: Halves · Pistol · ATT · DEF) ──
   tactical: TacticalBreakdown
-
-  // ── comparisons ──
-  streak: StreakForMatch | null
-  mapHistory: MapHistorySnapshot | null
-
-  // ── scoreboards ──
-  playerDeltas: PlayerDelta[] | null
-  oppScoreboard: OppScoreboardLine[] | null
-
-  // ── highlights (multi-kills + clutches) ──
-  highlights: Highlight[] | null
 
   // ── heatmap (set only when image is attached) ──
   heatmapPng: Buffer | null
@@ -68,12 +46,10 @@ export function buildMatchEmbed(s: DiscordMatchSummary) {
     s.ourScore != null && s.oppScore != null ? `${s.ourScore}–${s.oppScore}` : '—'
   const title = `${resultEmoji} ${s.mapName ?? 'Unknown'} ${scoreStr} ${s.result ?? ''} vs ${s.opponentName ?? 'Unknown'}`
 
-  const description = buildFormLine(s.streak, s.mapHistory)
-
   const fields: EmbedField[] = []
   const t = s.tactical
 
-  // Halves + pistol — one row of inline fields.
+  // One inline row: Halves · Pistol · ATT · DEF.
   if (t.halves) {
     const otStr = t.halves.ot ? ` · OT ${t.halves.ot.w}-${t.halves.ot.l}` : ''
     fields.push({
@@ -89,7 +65,6 @@ export function buildMatchEmbed(s: DiscordMatchSummary) {
       inline: true,
     })
   }
-  // ATT / DEF side stat blocks — inline, side by side.
   if (t.att) {
     const parts = [`${t.att.w}-${t.att.l}`]
     if (t.att.plantRatePct != null) parts.push(`plant ${t.att.plantRatePct}%`)
@@ -102,60 +77,11 @@ export function buildMatchEmbed(s: DiscordMatchSummary) {
     if (t.def.avgDefuseSec != null) parts.push(`avg ${t.def.avgDefuseSec}s`)
     fields.push({ name: 'DEF', value: parts.join(' · '), inline: true })
   }
-  // Buy types — full-width line.
-  if (t.byBuyType) {
-    fields.push({
-      name: 'Buy types',
-      value: t.byBuyType.map((b) => `${b.type} ${b.w}-${b.l}`).join(' · '),
-      inline: false,
-    })
-  }
-
-  // Sites — full-width line with win pct.
-  if (t.sites) {
-    const parts: string[] = []
-    for (const k of ['A', 'B', 'C'] as const) {
-      const s2 = t.sites[k]
-      if (s2.total > 0) {
-        const wp = Math.round((s2.wins / s2.total) * 100)
-        parts.push(`${k} ${s2.wins}/${s2.total} (${wp}%)`)
-      }
-    }
-    if (parts.length) {
-      fields.push({ name: 'Sites', value: parts.join(' · '), inline: false })
-    }
-  }
-
-  // Highlights — multi-kills + clutches, top 2-3 by impact.
-  if (s.highlights && s.highlights.length) {
-    fields.push({
-      name: 'Highlights',
-      value: s.highlights.map(formatHighlight).join(' · '),
-      inline: false,
-    })
-  }
-
-  // Scoreboards — separate code blocks for monospace alignment.
-  if (s.playerDeltas && s.playerDeltas.length) {
-    fields.push({
-      name: 'Our team (ACS vs avg)',
-      value: '```\n' + formatScoreboardBlock(s.playerDeltas, true) + '\n```',
-      inline: false,
-    })
-  }
-  if (s.oppScoreboard && s.oppScoreboard.length) {
-    fields.push({
-      name: 'Them',
-      value: '```\n' + formatScoreboardBlock(s.oppScoreboard, false) + '\n```',
-      inline: false,
-    })
-  }
 
   const embed: {
     title: string
     url: string
     color: number
-    description?: string
     fields: EmbedField[]
     footer: { text: string }
     timestamp: string
@@ -168,86 +94,9 @@ export function buildMatchEmbed(s: DiscordMatchSummary) {
     footer: { text: `${s.teamName} · ${s.matchIdHelldock}` },
     timestamp: new Date().toISOString(),
   }
-  if (description) embed.description = description
   if (s.heatmapPng) embed.image = { url: 'attachment://heatmap.png' }
 
   return { username: 'Helldock', embeds: [embed] }
-}
-
-function buildFormLine(
-  streak: StreakForMatch | null,
-  mapHistory: MapHistorySnapshot | null
-): string | null {
-  const parts: string[] = []
-  if (streak) {
-    const emoji = streak.kind === 'W' ? '🔥' : '🧊'
-    if (streak.length >= 2) {
-      parts.push(`${emoji} ${streak.length}${streak.kind} in a row`)
-    } else {
-      // Single match — show as "1st W" / "1st L" (the new streak just started)
-      parts.push(`${emoji} 1st ${streak.kind}`)
-    }
-  }
-  if (mapHistory && mapHistory.total > 0) {
-    const wp = Math.round((mapHistory.wins / mapHistory.total) * 100)
-    parts.push(
-      `${mapHistory.mapName} ${mapHistory.wins}-${mapHistory.total - mapHistory.wins} ${mapHistory.windowLabel} (${wp}%)`
-    )
-  }
-  return parts.length ? `Form: ${parts.join(' · ')}` : null
-}
-
-type ScoreboardLine = {
-  name: string
-  k: number | null
-  a: number | null
-  d: number | null
-  acs: number | null
-  acsDelta?: number | null
-}
-
-function formatScoreboardBlock(rows: ScoreboardLine[], withDelta: boolean): string {
-  const maxName = Math.max(...rows.map((r) => r.name.length))
-  return rows
-    .map((r) => {
-      const name = r.name.padEnd(maxName)
-      const kad = formatKad(r.k, r.a, r.d).padEnd(8)
-      const acs = r.acs != null ? String(Math.round(r.acs)).padStart(4) : '   —'
-      let delta = ''
-      if (withDelta) {
-        if (r.acsDelta != null) {
-          const sign = r.acsDelta > 0 ? '+' : r.acsDelta < 0 ? '−' : '±'
-          const abs = Math.abs(r.acsDelta)
-          delta = `  (${sign}${String(abs).padStart(2)})`
-        } else {
-          delta = '       '
-        }
-      }
-      return `${name}  ${kad}${acs}${delta}`
-    })
-    .join('\n')
-}
-
-function formatKad(
-  k: number | null,
-  a: number | null,
-  d: number | null
-): string {
-  const fmt = (n: number | null) => (n == null ? '—' : String(n))
-  return `${fmt(k)}/${fmt(a)}/${fmt(d)}`
-}
-
-function formatHighlight(h: Highlight): string {
-  if (h.kind === 'clutch') {
-    return `🧊 ${h.player} ${h.clutchType} clutch R${h.round}`
-  }
-  if (h.kind === 'ace') {
-    return `💥 ${h.player} ${h.count > 1 ? `${h.count}x ace` : 'ace'}`
-  }
-  if (h.kind === 'four_k') {
-    return `🔥 ${h.player} ${h.count > 1 ? `${h.count}x 4K` : '4K'}`
-  }
-  return `⚡ ${h.player} ${h.count > 1 ? `${h.count}x 3K` : '3K'}`
 }
 
 // ── Webhook posters ──────────────────────────────────────────────────────────
@@ -348,30 +197,7 @@ export async function notifyDiscordForMatch(
       .single()
     if (!match) return
 
-    // Pull match_players (incl. player_id for delta lookups + display_name),
-    // rounds (full tactical shape), and kill_events (for the heatmap) in
-    // parallel.
-    type MpRow = {
-      player_id: string | null
-      k: number | null
-      a: number | null
-      d: number | null
-      acs: number | null
-      riot_name: string | null
-      two_k: number | null
-      three_k: number | null
-      four_k: number | null
-      aces: number | null
-      player: { display_name: string } | null
-    }
-    type OppRow = {
-      opp_player_name: string | null
-      riot_id_full: string | null
-      k: number | null
-      a: number | null
-      d: number | null
-      acs: number | null
-    }
+    // Pull rounds (for tactical breakdown) + kill_events (for heatmap) in parallel.
     type RoundRow = {
       round_num: number | null
       side: string | null
@@ -393,13 +219,7 @@ export async function notifyDiscordForMatch(
       killer_is_ours: boolean | null
     }
 
-    const [mpRes, rdRes, keRes, oppRes] = await Promise.all([
-      supabase
-        .from('match_players')
-        .select(
-          'player_id, k, a, d, acs, riot_name, two_k, three_k, four_k, aces, player:players(display_name)'
-        )
-        .eq('match_id', matchUUID),
+    const [rdRes, keRes] = await Promise.all([
       supabase
         .from('rounds')
         .select(
@@ -410,66 +230,12 @@ export async function notifyDiscordForMatch(
         .from('kill_events')
         .select('killer_x, killer_y, victim_x, victim_y, killer_is_ours')
         .eq('match_id', matchUUID),
-      supabase
-        .from('opp_players')
-        .select('opp_player_name, riot_id_full, k, a, d, acs')
-        .eq('match_id', matchUUID),
     ])
 
-    const matchPlayers = (mpRes.data ?? []) as MpRow[]
     const rounds = (rdRes.data ?? []) as RoundRow[]
     const killEvents = (keRes.data ?? []) as KillRow[]
-    const oppRows = (oppRes.data ?? []) as OppRow[]
 
-    // Opp scoreboard — keep rows that have at least one of k/d/acs populated
-    // so manual matches with empty opp rows don't render an empty block.
-    const oppScoreboard: OppScoreboardLine[] = oppRows
-      .filter((o) => o.k != null || o.d != null || o.acs != null)
-      .map((o) => ({
-        name: o.opp_player_name ?? o.riot_id_full ?? '???',
-        k: o.k,
-        a: o.a,
-        d: o.d,
-        acs: o.acs,
-      }))
-      .sort((a, b) => (b.acs ?? -1) - (a.acs ?? -1))
-
-    // Comparisons — fan out in parallel.
-    const matchPlayersForDelta = matchPlayers
-      .filter((mp) => mp.player?.display_name)
-      .map((mp) => ({
-        player_id: mp.player_id,
-        k: mp.k,
-        a: mp.a,
-        d: mp.d,
-        acs: mp.acs,
-        display_name: mp.player!.display_name,
-      }))
-
-    const [streak, mapHistory, playerDeltas] = await Promise.all([
-      computeStreakForMatch(supabase, teamId),
-      match.map_name
-        ? computeMapHistory(supabase, teamId, match.map_name, matchUUID)
-        : Promise.resolve(null),
-      computePlayerAcsDelta(supabase, teamId, matchPlayersForDelta, matchUUID),
-    ])
-
-    // Tactical breakdown + highlights — pure compute over already-fetched rows.
     const tactical = computeTacticalBreakdown(rounds as RoundForBreakdown[])
-    const matchPlayersForHighlights: MatchPlayerForHighlights[] = matchPlayers
-      .filter((mp) => mp.player?.display_name)
-      .map((mp) => ({
-        display_name: mp.player!.display_name,
-        riot_name: mp.riot_name,
-        two_k: mp.two_k,
-        three_k: mp.three_k,
-        four_k: mp.four_k,
-        aces: mp.aces,
-      }))
-    const highlights = computeHighlights(
-      matchPlayersForHighlights,
-      rounds as RoundForHighlights[]
-    )
 
     const heatmapPng = await renderMatchHeatmapPng({
       mapName: match.map_name,
@@ -486,11 +252,6 @@ export async function notifyDiscordForMatch(
       oppScore: match.opp_score,
       result: match.result as 'W' | 'L' | null,
       tactical,
-      streak,
-      mapHistory,
-      playerDeltas: playerDeltas.length ? playerDeltas : null,
-      oppScoreboard: oppScoreboard.length ? oppScoreboard : null,
-      highlights: highlights.length ? highlights : null,
       heatmapPng,
     }
 
