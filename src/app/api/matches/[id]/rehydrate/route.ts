@@ -19,5 +19,6 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     match_players_inserted: result.match_players_inserted,
     opp_players_patched: result.opp_players_patched,
     kill_events_inserted: result.kill_events_inserted,
+    round_player_stats_inserted: result.round_player_stats_inserted,
   })
 }

@@ -230,6 +230,27 @@ export async function ingestMatch(opts: IngestOpts): Promise<IngestResult> {
     }
   }
 
+  // round_player_stats — same non-blocking discipline as kill_events.
+  // Player_id resolved from puuid (preferred) or null for opp players.
+  if (xf.roundPlayerStats.length) {
+    const rows = xf.roundPlayerStats.map((rps) => ({
+      ...rps,
+      match_id: matchUUID,
+      player_id: rps.is_ours ? byPuuid.get(rps.puuid) ?? null : null,
+    }))
+    const { error: rpsErr } = await supabase.from('round_player_stats').insert(rows)
+    if (rpsErr) {
+      await supabase.from('ingest_failures').insert({
+        match_id: matchUUID,
+        match_id_helldock: assignedHelldockId,
+        henrik_id: henrikId,
+        source: 'round_player_stats',
+        error: rpsErr.message,
+        payload: { count: xf.roundPlayerStats.length },
+      })
+    }
+  }
+
   // Discord (fire-and-forget; never throws). Records its own failures.
   await notifyDiscordForMatch(supabase, teamId, matchUUID, baseUrl)
 

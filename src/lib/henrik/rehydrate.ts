@@ -19,6 +19,7 @@ export type RehydrateOk = {
   match_players_inserted: number
   opp_players_patched: number
   kill_events_inserted: number
+  round_player_stats_inserted: number
 }
 
 export type RehydrateErr = {
@@ -136,6 +137,19 @@ export async function rehydrateMatch(
     if (!keErr) killEventsInserted = xf.killEvents.length
   }
 
+  // Replace round_player_stats for this match (delete + bulk insert)
+  let roundPlayerStatsInserted = 0
+  await supabase.from('round_player_stats').delete().eq('match_id', match.id)
+  if (xf.roundPlayerStats.length) {
+    const rows = xf.roundPlayerStats.map((rps) => ({
+      ...rps,
+      match_id: match.id,
+      player_id: rps.is_ours ? byPuuid.get(rps.puuid) ?? null : null,
+    }))
+    const { error: rpsErr } = await supabase.from('round_player_stats').insert(rows)
+    if (!rpsErr) roundPlayerStatsInserted = rows.length
+  }
+
   // If the match has zero match_players (silent partial-import failure), INSERT
   // all 5 fresh instead of trying to UPDATE. Otherwise patch the existing rows.
   const { count: existingMpCount } = await supabase
@@ -245,5 +259,6 @@ export async function rehydrateMatch(
     match_players_inserted: mpInserted,
     opp_players_patched: oppPatched,
     kill_events_inserted: killEventsInserted,
+    round_player_stats_inserted: roundPlayerStatsInserted,
   }
 }

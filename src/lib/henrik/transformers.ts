@@ -363,6 +363,30 @@ export type RoundData = {
   their_ults_used: number | null
 }
 
+// S26 — per-round-per-player breakdown. One row per (match, round_num, puuid).
+// V4 round.stats[] gives k/d/a/score/economy.loadout_value per round.
+// Damage per round is sometimes present (round.stats[i].damage.{dealt,received});
+// when V4 omits it we leave NULL rather than fabricate.
+// Ability-cast columns: V4 returns null per-round (known bug), so c/q/e stay NULL.
+// ability_x_cast is populated as ult-kill count attributed to this (round, puuid)
+// — same lower-bound proxy already used for rounds.our_ults_used.
+export type RoundPlayerStatData = {
+  round_num: number
+  puuid: string
+  is_ours: boolean
+  k: number
+  d: number
+  a: number
+  score: number
+  damage_made: number | null
+  damage_received: number | null
+  ability_c_cast: number | null
+  ability_q_cast: number | null
+  ability_e_cast: number | null
+  ability_x_cast: number | null
+  econ_spent: number
+}
+
 export type KillEventData = {
   round_num: number
   ts_in_round_ms: number | null
@@ -465,6 +489,7 @@ export type TransformResult = {
   ourPlayers: OurPlayerData[]
   oppPlayers: OppPlayerData[]
   killEvents: KillEventData[]
+  roundPlayerStats: RoundPlayerStatData[]
 }
 
 // ── Main exports ────────────────────────────────────────────────────────────
@@ -721,6 +746,95 @@ export function transformMatchToRows(
     }
   })
 
+  // S26 — per-round-per-player rows. One per known puuid per round.
+  // V4 round.stats[i] shape:
+  //   player.puuid, stats.{score,kills,headshots,bodyshots,legshots},
+  //   economy.loadout_value,
+  //   damage_events[] — each entry is damage THIS player dealt to victim,
+  //     with damage_events[].player.puuid being the VICTIM. So:
+  //       damage_made (this puuid) = sum(stats[i].damage_events[].damage)
+  //       damage_received (this puuid) = sum across all OTHER j of
+  //         { ev.damage for ev in stats[j].damage_events where ev.player.puuid === this puuid }
+  //   ability_casts {grenade,ability_1,ability_2,ultimate} — V4 returns null
+  //     for all four per-round; only match-wide casts are exposed.
+  //   ult-kill count is a lower-bound proxy for ability_x_cast.
+  //   stats.deaths/assists are not exposed per round — derive from kill timeline.
+  const roundPlayerStats: RoundPlayerStatData[] = []
+  for (let idx = 0; idx < meta.roundsRaw.length; idx++) {
+    const rnd = meta.roundsRaw[idx]
+    const roundNum = idx + 1
+    const roundKills = meta.killsByRound[idx] ?? []
+    const statsArr: RawMatch[] = Array.isArray(rnd?.stats) ? rnd.stats : []
+
+    // Per-puuid damage_received: walk every dealer's damage_events and credit
+    // the victim. Cheaper than O(N²) per puuid since we only pass stats[] once.
+    const dmgReceivedByPuuid: Record<string, number> = {}
+    for (const ps of statsArr) {
+      for (const ev of (ps?.damage_events ?? []) as RawMatch[]) {
+        const victimPuuid: string | undefined = ev?.player?.puuid
+        if (!victimPuuid) continue
+        const d: number = typeof ev?.damage === 'number' ? ev.damage : 0
+        dmgReceivedByPuuid[victimPuuid] = (dmgReceivedByPuuid[victimPuuid] ?? 0) + d
+      }
+    }
+
+    // Per-puuid deaths + assists this round (derive from kills timeline).
+    // Deaths = 1 if this puuid appears as a victim. Assists = appearances in
+    // kill.assistants[] (V4 exposes assistants per kill on top-level kills[]).
+    const deathsByPuuid: Record<string, number> = {}
+    const assistsByPuuid: Record<string, number> = {}
+    for (const k of roundKills) {
+      const vp: string | undefined = k?.victim?.puuid
+      if (vp) deathsByPuuid[vp] = (deathsByPuuid[vp] ?? 0) + 1
+      const assistants = Array.isArray(k?.assistants) ? k.assistants : []
+      for (const aRec of assistants) {
+        const ap: string | undefined = aRec?.puuid ?? aRec?.player?.puuid
+        if (ap) assistsByPuuid[ap] = (assistsByPuuid[ap] ?? 0) + 1
+      }
+    }
+
+    const ultKillsByPuuid: Record<string, number> = {}
+    for (const k of roundKills) {
+      if (!isUltKill(k)) continue
+      const kp: string | undefined = k?.killer?.puuid
+      if (!kp) continue
+      ultKillsByPuuid[kp] = (ultKillsByPuuid[kp] ?? 0) + 1
+    }
+
+    for (const ps of statsArr) {
+      const puuid: string | undefined = ps?.player?.puuid
+      if (!puuid) continue
+      const isOurs = ourPuuids.has(puuid)
+      const isOpp = oppPuuids.has(puuid)
+      if (!isOurs && !isOpp) continue
+
+      const psStats = ps.stats ?? {}
+      let damageMade = 0
+      for (const ev of (ps?.damage_events ?? []) as RawMatch[]) {
+        if (typeof ev?.damage === 'number') damageMade += ev.damage
+      }
+      const loadout =
+        typeof ps?.economy?.loadout_value === 'number' ? ps.economy.loadout_value : 0
+
+      roundPlayerStats.push({
+        round_num: roundNum,
+        puuid,
+        is_ours: isOurs,
+        k: typeof psStats.kills === 'number' ? psStats.kills : 0,
+        d: deathsByPuuid[puuid] ?? 0,
+        a: assistsByPuuid[puuid] ?? 0,
+        score: typeof psStats.score === 'number' ? psStats.score : 0,
+        damage_made: damageMade,
+        damage_received: dmgReceivedByPuuid[puuid] ?? 0,
+        ability_c_cast: null,
+        ability_q_cast: null,
+        ability_e_cast: null,
+        ability_x_cast: ultKillsByPuuid[puuid] ?? 0,
+        econ_spent: loadout,
+      })
+    }
+  }
+
   // Kill events — one row per kill across all rounds. Coordinates are V4
   // optional (may be null on older matches or non-coord-providing endpoints).
   const killEvents: KillEventData[] = []
@@ -819,5 +933,5 @@ export function transformMatchToRows(
     }
   })
 
-  return { matchData, rounds, ourPlayers, oppPlayers, killEvents }
+  return { matchData, rounds, ourPlayers, oppPlayers, killEvents, roundPlayerStats }
 }
