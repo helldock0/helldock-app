@@ -67,6 +67,49 @@ export type DossierTendencies = {
   ultN: number
 }
 
+// S26 — deeper tendency mining. All computed over the opp's ATT half
+// (= rounds where our `side === 'Defense'`).
+
+export type OppSetupPhase =
+  | 'Pistol'
+  | 'Pistol-carry'
+  | 'Early'
+  | 'Mid'
+  | 'Late'
+  | 'OT'
+
+export type DossierSetupByRound = {
+  phase: OppSetupPhase
+  total: number          // opp ATT rounds in this phase across all matches
+  oppWins: number        // our outcome === 'L'
+  plants: number
+  oppWinPct: number | null
+  plantRate: number | null
+  avgPlantTime: number | null   // seconds, plant rounds only
+}
+
+export type ExecTimingBucket = 'Fast (<30s)' | 'Default (30-60s)' | 'Slow (>60s)'
+
+export type DossierExecTiming = {
+  map: string
+  total: number          // # of their plants on this map
+  buckets: { bucket: ExecTimingBucket; count: number; pct: number }[]
+  modal: ExecTimingBucket | null   // most common bucket
+}
+
+export type DossierSiteByHalf = {
+  map: string
+  firstHalf: { total: number; a: number; b: number; c: number; aPct: number | null; bPct: number | null; cPct: number | null }
+  secondHalf: { total: number; a: number; b: number; c: number; aPct: number | null; bPct: number | null; cPct: number | null }
+  swing: { site: 'A' | 'B' | 'C'; deltaPp: number }[]   // sites whose share moved between halves
+}
+
+export type DossierDeepTendencies = {
+  setupsByRound: DossierSetupByRound[]
+  execTimingByMap: DossierExecTiming[]
+  siteByHalf: DossierSiteByHalf[]
+}
+
 export type DossierPlayerStat = {
   riotIdFull: string | null
   displayName: string | null
@@ -95,6 +138,7 @@ export type OpponentDossier = {
   theirRoster: DossierPlayerStat[]
   theirTopComps: DossierComp[]
   tendencies: DossierTendencies
+  deepTendencies: DossierDeepTendencies
   ourBestComps: DossierOurComp[]
   ourTopFragger: { name: string; avgAcs: number } | null
   ourSiteConversions: DossierSite[]
@@ -103,6 +147,188 @@ export type OpponentDossier = {
 /** Case-insensitive equality on trimmed opponent names. */
 export function normalizeOpponentName(name: string | null | undefined): string {
   return (name ?? '').trim().toLowerCase()
+}
+
+// ── Deep-tendency helpers ────────────────────────────────────────────────────
+
+// Position within a half (1–12). Used to bucket setups regardless of which
+// half the opp is ATTACKING in (which depends on start_side).
+function positionInHalf(roundNum: number): { phase: OppSetupPhase; pos: number } | null {
+  if (roundNum <= 12) return { phase: phaseForPosition(roundNum), pos: roundNum }
+  if (roundNum <= 24) {
+    const pos = roundNum - 12
+    return { phase: phaseForPosition(pos), pos }
+  }
+  // OT rounds collapse to OT phase
+  return { phase: 'OT', pos: roundNum - 24 }
+}
+
+function phaseForPosition(pos: number): OppSetupPhase {
+  if (pos === 1) return 'Pistol'
+  if (pos === 2 || pos === 3) return 'Pistol-carry'
+  if (pos >= 4 && pos <= 6) return 'Early'
+  if (pos >= 7 && pos <= 9) return 'Mid'
+  if (pos >= 10 && pos <= 12) return 'Late'
+  return 'OT'
+}
+
+function bucketForPlantTime(seconds: number): ExecTimingBucket {
+  if (seconds < 30) return 'Fast (<30s)'
+  if (seconds <= 60) return 'Default (30-60s)'
+  return 'Slow (>60s)'
+}
+
+const PHASE_ORDER: OppSetupPhase[] = ['Pistol', 'Pistol-carry', 'Early', 'Mid', 'Late', 'OT']
+
+/**
+ * Group opp's ATT-half rounds by phase (round-position within the half), then
+ * compute total / wins / plants / avg plant time per phase. The phase is the
+ * opp's perspective regardless of which half they attacked.
+ *
+ * "Their ATT" = our `side === 'Defense'` rounds.
+ */
+export function computeOppSetupsByRound(rounds: DashRound[]): DossierSetupByRound[] {
+  type Bag = { total: number; oppWins: number; plants: number; plantTimeSum: number }
+  const byPhase: Record<OppSetupPhase, Bag> = {
+    Pistol: { total: 0, oppWins: 0, plants: 0, plantTimeSum: 0 },
+    'Pistol-carry': { total: 0, oppWins: 0, plants: 0, plantTimeSum: 0 },
+    Early: { total: 0, oppWins: 0, plants: 0, plantTimeSum: 0 },
+    Mid: { total: 0, oppWins: 0, plants: 0, plantTimeSum: 0 },
+    Late: { total: 0, oppWins: 0, plants: 0, plantTimeSum: 0 },
+    OT: { total: 0, oppWins: 0, plants: 0, plantTimeSum: 0 },
+  }
+  for (const r of rounds) {
+    if (r.side !== 'Defense') continue   // opp wasn't attacking
+    const pos = positionInHalf(r.round_num)
+    if (!pos) continue
+    const bag = byPhase[pos.phase]
+    bag.total++
+    if (r.outcome === 'L') bag.oppWins++
+    if (r.plant_time_in_round != null) {
+      bag.plants++
+      bag.plantTimeSum += r.plant_time_in_round
+    }
+  }
+  return PHASE_ORDER.filter((p) => byPhase[p].total > 0).map((phase) => {
+    const b = byPhase[phase]
+    return {
+      phase,
+      total: b.total,
+      oppWins: b.oppWins,
+      plants: b.plants,
+      oppWinPct: pct(b.oppWins, b.total),
+      plantRate: pct(b.plants, b.total),
+      avgPlantTime:
+        b.plants > 0 ? Math.round((b.plantTimeSum / b.plants) * 10) / 10 : null,
+    }
+  })
+}
+
+/**
+ * Per map: bucket THEIR plants by `plant_time_in_round` (fast / default / slow)
+ * and return distribution + the modal bucket. Maps with <3 plants are filtered
+ * (low-sample noise).
+ */
+export function computeOppExecuteTiming(
+  rounds: DashRound[],
+  matchIdToMap: Record<string, string | null>
+): DossierExecTiming[] {
+  type MapBag = Record<ExecTimingBucket, number>
+  const byMap: Record<string, MapBag> = {}
+  for (const r of rounds) {
+    if (r.side !== 'Defense') continue
+    if (r.plant_time_in_round == null) continue
+    const map = matchIdToMap[r.match_id]
+    if (!map) continue
+    const bag =
+      byMap[map] ??
+      { 'Fast (<30s)': 0, 'Default (30-60s)': 0, 'Slow (>60s)': 0 }
+    const bucket = bucketForPlantTime(r.plant_time_in_round)
+    bag[bucket]++
+    byMap[map] = bag
+  }
+  return Object.keys(byMap)
+    .map((map) => {
+      const bag = byMap[map]
+      const total = bag['Fast (<30s)'] + bag['Default (30-60s)'] + bag['Slow (>60s)']
+      const buckets = (Object.keys(bag) as ExecTimingBucket[]).map((bucket) => ({
+        bucket,
+        count: bag[bucket],
+        pct: total > 0 ? Math.round((bag[bucket] / total) * 100) : 0,
+      }))
+      const modal =
+        buckets.reduce<{ b: ExecTimingBucket; c: number } | null>((best, b) => {
+          if (b.count === 0) return best
+          if (!best || b.count > best.c) return { b: b.bucket, c: b.count }
+          return best
+        }, null)?.b ?? null
+      return { map, total, buckets, modal }
+    })
+    .filter((m) => m.total >= 3)
+    .sort((a, b) => b.total - a.total)
+}
+
+/**
+ * Per map: A/B/C site split for opp's ATT rounds, broken down by which half
+ * (our 1st = rounds 1-12, our 2nd = rounds 13-24). Returns the swing: sites
+ * whose share between halves differs by ≥20pp. Maps with <4 their-plants
+ * across both halves filtered out.
+ */
+export function computeOppSiteByHalf(
+  rounds: DashRound[],
+  matchIdToMap: Record<string, string | null>
+): DossierSiteByHalf[] {
+  type Sites = { total: number; a: number; b: number; c: number }
+  type MapBag = { first: Sites; second: Sites }
+  const empty = (): Sites => ({ total: 0, a: 0, b: 0, c: 0 })
+  const byMap: Record<string, MapBag> = {}
+  for (const r of rounds) {
+    if (r.side !== 'Defense') continue
+    if (!r.site || (r.site !== 'A' && r.site !== 'B' && r.site !== 'C')) continue
+    if (r.plant_time_in_round == null) continue   // exclude no-plant rounds
+    const map = matchIdToMap[r.match_id]
+    if (!map) continue
+    const bag = byMap[map] ?? { first: empty(), second: empty() }
+    const half = r.round_num <= 12 ? bag.first : r.round_num <= 24 ? bag.second : null
+    if (!half) continue   // skip OT
+    half.total++
+    if (r.site === 'A') half.a++
+    else if (r.site === 'B') half.b++
+    else half.c++
+    byMap[map] = bag
+  }
+  return Object.keys(byMap)
+    .map((map) => {
+      const m = byMap[map]
+      const summarize = (s: Sites) => ({
+        total: s.total,
+        a: s.a,
+        b: s.b,
+        c: s.c,
+        aPct: pct(s.a, s.total),
+        bPct: pct(s.b, s.total),
+        cPct: pct(s.c, s.total),
+      })
+      const first = summarize(m.first)
+      const second = summarize(m.second)
+      const swing: { site: 'A' | 'B' | 'C'; deltaPp: number }[] = []
+      ;(['A', 'B', 'C'] as const).forEach((site) => {
+        const key = site === 'A' ? 'aPct' : site === 'B' ? 'bPct' : 'cPct'
+        const f = first[key]
+        const s = second[key]
+        if (f == null || s == null) return
+        const delta = s - f
+        if (Math.abs(delta) >= 20) swing.push({ site, deltaPp: delta })
+      })
+      swing.sort((a, b) => Math.abs(b.deltaPp) - Math.abs(a.deltaPp))
+      return { map, firstHalf: first, secondHalf: second, swing }
+    })
+    .filter((m) => m.firstHalf.total + m.secondHalf.total >= 4)
+    .sort(
+      (a, b) =>
+        b.firstHalf.total + b.secondHalf.total -
+        (a.firstHalf.total + a.secondHalf.total)
+    )
 }
 
 export function computeOpponentDossier(
@@ -263,6 +489,15 @@ export function computeOpponentDossier(
     ultN: theirUltN,
   }
 
+  // S26 — deep tendency mining
+  const matchToMapLookup: Record<string, string | null> = {}
+  for (const m of ms) matchToMapLookup[m.id] = m.map_name
+  const deepTendencies: DossierDeepTendencies = {
+    setupsByRound: computeOppSetupsByRound(ms_rounds),
+    execTimingByMap: computeOppExecuteTiming(ms_rounds, matchToMapLookup),
+    siteByHalf: computeOppSiteByHalf(ms_rounds, matchToMapLookup),
+  }
+
   // What works for us: our comps + win rate vs this opp
   const ourCompsAgg: Record<string, { agents: string[]; played: number; ourWins: number }> = {}
   for (const m of ms) {
@@ -356,6 +591,7 @@ export function computeOpponentDossier(
     theirRoster,
     theirTopComps,
     tendencies,
+    deepTendencies,
     ourBestComps,
     ourTopFragger,
     ourSiteConversions,

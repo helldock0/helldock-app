@@ -310,6 +310,182 @@ export default async function OpponentDossierPage({
         </section>
       </div>
 
+      {/* Tendencies (deep) — S26 */}
+      {(dossier.deepTendencies.setupsByRound.length > 0 ||
+        dossier.deepTendencies.execTimingByMap.length > 0 ||
+        dossier.deepTendencies.siteByHalf.length > 0) && (
+        <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5 mb-6">
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-fg">Tendencies (deep)</h2>
+            <p className="text-2xs uppercase tracking-wider text-muted-2 mt-0.5">
+              setup defaults · execute timing · site preference by half
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* Setups by round phase */}
+            {dossier.deepTendencies.setupsByRound.length > 0 && (
+              <div>
+                <h3 className="text-2xs uppercase tracking-wider text-gold mb-2">
+                  Setups by phase
+                </h3>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-2xs uppercase tracking-wider text-muted-2 border-b border-line">
+                      <th className="text-left py-1.5 font-medium">Phase</th>
+                      <th className="text-right py-1.5 font-medium">n</th>
+                      <th className="text-right py-1.5 font-medium">Win%</th>
+                      <th className="text-right py-1.5 font-medium">Plant%</th>
+                      <th className="text-right py-1.5 font-medium">Avg sec</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dossier.deepTendencies.setupsByRound.map((s) => (
+                      <tr key={s.phase} className="border-b border-line/30">
+                        <td className="py-1 text-fg font-medium">{s.phase}</td>
+                        <td className="py-1 text-right tabular-nums text-muted">{s.total}</td>
+                        <td
+                          className={`py-1 text-right tabular-nums ${
+                            s.oppWinPct == null
+                              ? 'text-muted-2'
+                              : s.oppWinPct >= 60
+                              ? 'text-crimson'
+                              : s.oppWinPct >= 40
+                              ? 'text-gold'
+                              : 'text-win-green'
+                          }`}
+                        >
+                          {s.oppWinPct == null ? '—' : `${s.oppWinPct}%`}
+                        </td>
+                        <td className="py-1 text-right tabular-nums text-muted">
+                          {s.plantRate == null ? '—' : `${s.plantRate}%`}
+                        </td>
+                        <td className="py-1 text-right tabular-nums text-muted">
+                          {s.avgPlantTime == null ? '—' : `${s.avgPlantTime}s`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Execute timing per map */}
+            {dossier.deepTendencies.execTimingByMap.length > 0 && (
+              <div>
+                <h3 className="text-2xs uppercase tracking-wider text-gold mb-2">
+                  Execute timing
+                </h3>
+                <div className="space-y-3">
+                  {dossier.deepTendencies.execTimingByMap.map((m) => (
+                    <div key={m.map}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="text-fg font-medium">{m.map}</span>
+                        <span className="text-2xs text-muted-2 tnum">
+                          n={m.total}
+                          {m.modal && (
+                            <span className="ml-1.5 text-gold/80">· mostly {m.modal}</span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex h-2 rounded overflow-hidden bg-surface">
+                        {m.buckets.map((b) => (
+                          <div
+                            key={b.bucket}
+                            className={
+                              b.bucket === 'Fast (<30s)'
+                                ? 'bg-crimson/80'
+                                : b.bucket === 'Default (30-60s)'
+                                ? 'bg-gold/80'
+                                : 'bg-win-green/80'
+                            }
+                            style={{ width: `${b.pct}%` }}
+                            title={`${b.bucket}: ${b.count} (${b.pct}%)`}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex justify-between text-2xs text-muted-2 mt-0.5 tnum">
+                        <span>{m.buckets[0].pct}% fast</span>
+                        <span>{m.buckets[1].pct}% default</span>
+                        <span>{m.buckets[2].pct}% slow</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Site preference by half */}
+            {dossier.deepTendencies.siteByHalf.length > 0 && (
+              <div>
+                <h3 className="text-2xs uppercase tracking-wider text-gold mb-2">
+                  Site by half
+                </h3>
+                <div className="space-y-3">
+                  {dossier.deepTendencies.siteByHalf.map((m) => (
+                    <div key={m.map}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="text-fg font-medium">{m.map}</span>
+                        {m.swing.length > 0 && (
+                          <span className="text-2xs text-gold tnum">
+                            swings:{' '}
+                            {m.swing.map((s) => (
+                              <span key={s.site} className="ml-1">
+                                {s.site} {s.deltaPp >= 0 ? '+' : ''}
+                                {s.deltaPp}pp
+                              </span>
+                            ))}
+                          </span>
+                        )}
+                      </div>
+                      <table className="w-full text-2xs">
+                        <thead>
+                          <tr className="text-muted-2 border-b border-line/40">
+                            <th className="text-left py-0.5">half</th>
+                            <th className="text-right py-0.5">A</th>
+                            <th className="text-right py-0.5">B</th>
+                            <th className="text-right py-0.5">C</th>
+                            <th className="text-right py-0.5">n</th>
+                          </tr>
+                        </thead>
+                        <tbody className="tabular-nums">
+                          <tr className="border-b border-line/20">
+                            <td className="py-0.5 text-muted">1st</td>
+                            <td className="py-0.5 text-right text-fg">
+                              {m.firstHalf.aPct == null ? '—' : `${m.firstHalf.aPct}%`}
+                            </td>
+                            <td className="py-0.5 text-right text-fg">
+                              {m.firstHalf.bPct == null ? '—' : `${m.firstHalf.bPct}%`}
+                            </td>
+                            <td className="py-0.5 text-right text-fg">
+                              {m.firstHalf.cPct == null ? '—' : `${m.firstHalf.cPct}%`}
+                            </td>
+                            <td className="py-0.5 text-right text-muted-2">{m.firstHalf.total}</td>
+                          </tr>
+                          <tr>
+                            <td className="py-0.5 text-muted">2nd</td>
+                            <td className="py-0.5 text-right text-fg">
+                              {m.secondHalf.aPct == null ? '—' : `${m.secondHalf.aPct}%`}
+                            </td>
+                            <td className="py-0.5 text-right text-fg">
+                              {m.secondHalf.bPct == null ? '—' : `${m.secondHalf.bPct}%`}
+                            </td>
+                            <td className="py-0.5 text-right text-fg">
+                              {m.secondHalf.cPct == null ? '—' : `${m.secondHalf.cPct}%`}
+                            </td>
+                            <td className="py-0.5 text-right text-muted-2">{m.secondHalf.total}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* What works for us */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
         <section className="bg-surface-2 border border-gold/30 rounded-2xl p-5">

@@ -141,6 +141,47 @@ function buildMarkdown(dossier: OpponentDossier, audit: LastScrimAudit | null): 
     )
   }
 
+  // S26 — deep tendencies
+  const deep = dossier.deepTendencies
+  if (deep.setupsByRound.length > 0) {
+    lines.push('')
+    lines.push('## Setups by phase (their ATT)')
+    for (const s of deep.setupsByRound) {
+      const winStr = s.oppWinPct == null ? '—' : `${s.oppWinPct}%`
+      const plantStr = s.plantRate == null ? '—' : `${s.plantRate}%`
+      const timeStr = s.avgPlantTime == null ? '—' : `${s.avgPlantTime}s avg plant`
+      lines.push(
+        `- **${s.phase}** (n=${s.total}): ${winStr} win · ${plantStr} plant · ${timeStr}`
+      )
+    }
+  }
+  if (deep.execTimingByMap.length > 0) {
+    lines.push('')
+    lines.push('## Execute timing per map')
+    for (const m of deep.execTimingByMap) {
+      const parts = m.buckets.map((b) => `${b.pct}% ${b.bucket}`).join(' · ')
+      lines.push(
+        `- **${m.map}** (n=${m.total}${m.modal ? ` · mostly ${m.modal}` : ''}): ${parts}`
+      )
+    }
+  }
+  if (deep.siteByHalf.length > 0) {
+    const withSwing = deep.siteByHalf.filter((m) => m.swing.length > 0)
+    if (withSwing.length > 0) {
+      lines.push('')
+      lines.push('## Site swings (1st → 2nd half)')
+      for (const m of withSwing) {
+        const sw = m.swing
+          .map(
+            (s) =>
+              `${s.site} ${s.deltaPp >= 0 ? '+' : ''}${s.deltaPp}pp`
+          )
+          .join(', ')
+        lines.push(`- **${m.map}**: ${sw}`)
+      }
+    }
+  }
+
   return lines.join('\n')
 }
 
@@ -504,6 +545,101 @@ export default function PrepClient({
           </ul>
         </section>
       </div>
+
+      {/* S26 — Deep tendencies (compact view; full table on opponent dossier) */}
+      {(dossier.deepTendencies.setupsByRound.length > 0 ||
+        dossier.deepTendencies.execTimingByMap.length > 0 ||
+        dossier.deepTendencies.siteByHalf.some((m) => m.swing.length > 0)) && (
+        <details className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5 mb-5" open>
+          <summary className="text-sm font-semibold text-fg cursor-pointer hover:text-gold transition-colors">
+            🧠 Tendencies (deep) — setups · exec timing · site swings
+          </summary>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-4">
+            {dossier.deepTendencies.setupsByRound.length > 0 && (
+              <div>
+                <h3 className="text-2xs uppercase tracking-wider text-gold mb-2">
+                  Setups by phase
+                </h3>
+                <ul className="space-y-1 text-xs">
+                  {dossier.deepTendencies.setupsByRound.map((s) => (
+                    <li key={s.phase} className="flex items-center justify-between gap-2">
+                      <span className="text-fg font-medium">{s.phase}</span>
+                      <span className="text-2xs text-muted-2 tnum">
+                        {s.oppWinPct == null ? '—' : `${s.oppWinPct}%`} W
+                        <span className="mx-1.5">·</span>
+                        {s.plantRate == null ? '—' : `${s.plantRate}%`} plant
+                        <span className="mx-1.5">·</span>
+                        n={s.total}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {dossier.deepTendencies.execTimingByMap.length > 0 && (
+              <div>
+                <h3 className="text-2xs uppercase tracking-wider text-gold mb-2">
+                  Exec timing
+                </h3>
+                <ul className="space-y-1 text-xs">
+                  {dossier.deepTendencies.execTimingByMap.slice(0, 6).map((m) => (
+                    <li key={m.map} className="flex items-center justify-between gap-2">
+                      <span className="text-fg font-medium">{m.map}</span>
+                      <span className="text-2xs text-muted-2 tnum">
+                        {m.modal ?? '—'}
+                        <span className="mx-1.5">·</span>
+                        n={m.total}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {dossier.deepTendencies.siteByHalf.some((m) => m.swing.length > 0) && (
+              <div>
+                <h3 className="text-2xs uppercase tracking-wider text-gold mb-2">
+                  Site swings (1st → 2nd half)
+                </h3>
+                <ul className="space-y-1 text-xs">
+                  {dossier.deepTendencies.siteByHalf
+                    .filter((m) => m.swing.length > 0)
+                    .slice(0, 6)
+                    .map((m) => (
+                      <li
+                        key={m.map}
+                        className="flex items-center justify-between gap-2"
+                      >
+                        <span className="text-fg font-medium">{m.map}</span>
+                        <span className="text-2xs tnum">
+                          {m.swing.map((s) => (
+                            <span
+                              key={s.site}
+                              className={`ml-1 ${
+                                s.deltaPp > 0 ? 'text-gold' : 'text-muted'
+                              }`}
+                            >
+                              {s.site} {s.deltaPp >= 0 ? '+' : ''}
+                              {s.deltaPp}pp
+                            </span>
+                          ))}
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
+          </div>
+          <p className="text-2xs text-muted-2 mt-4">
+            Full breakdown:{' '}
+            <Link
+              href={`/opponents/${encodeURIComponent(dossier.name)}`}
+              className="text-gold hover:underline"
+            >
+              opponent dossier →
+            </Link>
+          </p>
+        </details>
+      )}
 
       {/* Raw markdown preview */}
       <details className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5">
