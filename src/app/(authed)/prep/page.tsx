@@ -8,7 +8,28 @@ import {
   type DossierMatchPlayer,
 } from '@/lib/opponent-dossier'
 import type { DashRound } from '@/lib/dashboard'
+import {
+  computeMatchEfficiency,
+  computeTeamAverages,
+  withTeamDeltas,
+  computeAuditFindings,
+  type RpsRow,
+  type EffMatchPlayer,
+  type EffRound,
+  type AuditFinding,
+} from '@/lib/efficiency'
 import PrepClient from './PrepClient'
+
+export type LastScrimAudit = {
+  matchIdHelldock: string
+  mapName: string | null
+  oppName: string | null
+  result: string | null
+  ourScore: number | null
+  oppScore: number | null
+  matchDate: string | null
+  findings: AuditFinding[]
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -132,5 +153,61 @@ export default async function PrepPage({
     )
   }
 
-  return <PrepClient dossier={dossier} />
+  // Pull the team's most recent scrim (any opponent) for the audit section.
+  const audit = await fetchLastScrimAudit(supabase, teamId)
+
+  return <PrepClient dossier={dossier} audit={audit} />
+}
+
+async function fetchLastScrimAudit(
+  supabase: ReturnType<typeof createClient>,
+  teamId: string
+): Promise<LastScrimAudit | null> {
+  const { data: latest } = await supabase
+    .from('matches')
+    .select('id, match_id_helldock, map_name, opponent_name, result, our_score, opp_score, match_date')
+    .eq('team_id', teamId)
+    .is('deleted_at', null)
+    .order('match_date', { ascending: false })
+    .order('match_id_helldock', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!latest) return null
+
+  const [{ data: rpsRaw }, { data: mpRaw }, { data: rdRaw }] = await Promise.all([
+    supabase
+      .from('round_player_stats')
+      .select('match_id, round_num, puuid, is_ours, k, d, damage_made, econ_spent, ability_x_cast')
+      .eq('match_id', latest.id),
+    supabase
+      .from('match_players')
+      .select('match_id, player_id, puuid, k, damage_made, ability_c, ability_q, ability_e, ability_x, player:players(display_name)')
+      .eq('match_id', latest.id),
+    supabase
+      .from('rounds')
+      .select('match_id, round_num, round_type, outcome')
+      .eq('match_id', latest.id),
+  ])
+
+  const rps = (rpsRaw ?? []) as RpsRow[]
+  const mp = (mpRaw ?? []) as unknown as EffMatchPlayer[]
+  const rd = (rdRaw ?? []) as EffRound[]
+  if (rps.length === 0) return null
+
+  const playersRaw = computeMatchEfficiency(rps, mp, rd)
+  const team = computeTeamAverages(playersRaw)
+  const players = withTeamDeltas(playersRaw, team)
+  const findings = computeAuditFindings(players)
+
+  return {
+    matchIdHelldock: latest.match_id_helldock,
+    mapName: latest.map_name,
+    oppName: latest.opponent_name,
+    result: latest.result,
+    ourScore: latest.our_score,
+    oppScore: latest.opp_score,
+    matchDate: latest.match_date,
+    findings,
+  }
 }

@@ -1182,6 +1182,13 @@ export default function MatchDetail({
             {saveStatus === 'saving' && <span className="text-xs text-[#6B7280]">saving…</span>}
             {saveStatus === 'saved' && <span className="text-xs text-green-400">saved</span>}
             {saveStatus === 'error' && <span className="text-xs text-[#DC143C]">error saving</span>}
+            <Link
+              href={`/matches/${localMatch.match_id_helldock}/report`}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium bg-[#3C3C44] text-[#6B7280] hover:text-white transition-colors"
+              title="Post-scrim report"
+            >
+              report
+            </Link>
             {!localMatch.is_manual_entry && (
               <RehydrateButton
                 matchUuid={localMatch.id}

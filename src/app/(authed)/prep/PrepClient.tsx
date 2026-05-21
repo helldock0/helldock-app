@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import type { OpponentDossier } from '@/lib/opponent-dossier'
+import type { LastScrimAudit } from './page'
 
 const SAMPLE_THRESHOLD = 2 // need ≥2 matches on a map before recommending it confidently
 
@@ -35,7 +36,7 @@ function topThreats(dossier: OpponentDossier) {
     .slice(0, 3)
 }
 
-function buildMarkdown(dossier: OpponentDossier): string {
+function buildMarkdown(dossier: OpponentDossier, audit: LastScrimAudit | null): string {
   const lines: string[] = []
   const w = dossier.wins
   const l = dossier.losses
@@ -45,6 +46,17 @@ function buildMarkdown(dossier: OpponentDossier): string {
     `**H2H:** ${w}–${l} (${dossier.winPct == null ? '—' : `${dossier.winPct}%`}) across ${dossier.played} matches · last met ${dossier.lastMet ?? '—'}`
   )
   lines.push('')
+
+  if (audit && audit.findings.length > 0) {
+    lines.push(
+      `## Last scrim audit · ${audit.matchIdHelldock} (${audit.mapName ?? '—'} vs ${audit.oppName ?? '—'} · ${audit.ourScore ?? '?'}–${audit.oppScore ?? '?'} ${audit.result ?? '—'})`
+    )
+    for (const f of audit.findings) {
+      const tag = f.kind === 'over' ? '⚠️' : '✅'
+      lines.push(`- ${tag} **${f.player}** · ${f.note}`)
+    }
+    lines.push('')
+  }
 
   const recent = recentForm(dossier)
   if (recent.length > 0) {
@@ -132,9 +144,15 @@ function buildMarkdown(dossier: OpponentDossier): string {
   return lines.join('\n')
 }
 
-export default function PrepClient({ dossier }: { dossier: OpponentDossier }) {
+export default function PrepClient({
+  dossier,
+  audit,
+}: {
+  dossier: OpponentDossier
+  audit: LastScrimAudit | null
+}) {
   const [copied, setCopied] = useState(false)
-  const markdown = useMemo(() => buildMarkdown(dossier), [dossier])
+  const markdown = useMemo(() => buildMarkdown(dossier, audit), [dossier, audit])
 
   const bans = selectBans(dossier)
   const picks = selectPicks(dossier)
@@ -198,6 +216,57 @@ export default function PrepClient({ dossier }: { dossier: OpponentDossier }) {
           {copied ? '✓ Copied' : '📋 Copy as markdown'}
         </button>
       </div>
+
+      {/* Last scrim audit — shows coaching findings from the most recent match (any opp) */}
+      {audit && audit.findings.length > 0 && (
+        <section className="bg-surface-2 border border-gold/30 rounded-2xl p-5 mb-5">
+          <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+            <div>
+              <h2 className="text-sm font-semibold text-gold mb-0.5">
+                📋 Last scrim audit
+              </h2>
+              <p className="text-2xs uppercase tracking-wider text-muted-2">
+                <Link
+                  href={`/matches/${audit.matchIdHelldock}/report`}
+                  className="hover:text-gold transition-colors"
+                  title="Open full post-scrim report"
+                >
+                  {audit.matchIdHelldock}
+                </Link>
+                <span className="mx-1.5 text-muted-2/60">·</span>
+                <span>{audit.mapName ?? '—'}</span>
+                <span className="mx-1.5 text-muted-2/60">·</span>
+                <span>vs {audit.oppName ?? '—'}</span>
+              </p>
+            </div>
+            <div
+              className={`text-2xs font-bold px-2 py-1 rounded ${
+                audit.result === 'W'
+                  ? 'bg-win-green/15 text-win-green border border-win-green/40'
+                  : audit.result === 'L'
+                  ? 'bg-crimson/15 text-crimson border border-crimson/40'
+                  : 'bg-surface border border-line text-muted-2'
+              }`}
+            >
+              {audit.ourScore ?? '?'}–{audit.oppScore ?? '?'} {audit.result ?? '—'}
+            </div>
+          </div>
+          <ul className="space-y-1.5 text-sm">
+            {audit.findings.map((f, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="shrink-0 mt-0.5">
+                  {f.kind === 'over' ? '⚠️' : '✅'}
+                </span>
+                <span>
+                  <span className="font-medium text-fg">{f.player}</span>
+                  <span className="text-muted-2 ml-2">·</span>
+                  <span className="text-muted ml-2">{f.note}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* H2H summary */}
       <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5 mb-5">
