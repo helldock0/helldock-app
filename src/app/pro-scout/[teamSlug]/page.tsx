@@ -11,6 +11,10 @@ import type {
   ProDossierRoleBaseline,
   ProTeamSummary,
 } from '@/lib/pro-scout/types'
+import MapPoolGrid from '@/components/pro-scout/team/MapPoolGrid'
+import TacticalRadar from '@/components/pro-scout/team/TacticalRadar'
+import FormSparkline from '@/components/pro-scout/team/FormSparkline'
+import RosterTable from '@/components/pro-scout/team/RosterTable'
 
 export const dynamic = 'force-dynamic'
 
@@ -288,88 +292,23 @@ export default async function ProScoutTeamPage({
 
       {/* Maps + tactics row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
-        {/* Map pool — 2 cols */}
+        {/* Map pool — 2 cols, now a visual grid */}
         <section className="lg:col-span-2 bg-surface-2 border border-line-strong/40 rounded-2xl p-5">
-          <SectionHeader title="Map pool" sub="win % · pick split · side splits · comp" />
-          {dossier.maps.length === 0 ? (
-            <p className="text-sm text-muted-2">—</p>
-          ) : (
-            <div className="space-y-2.5">
-              {dossier.maps.map((m) => (
-                <MapRow key={m.mapName} m={m} />
-              ))}
-            </div>
-          )}
+          <SectionHeader title="Map pool" sub="win % · side splits · picks · comp" />
+          <MapPoolGrid maps={dossier.maps} />
         </section>
 
-        {/* Tactical patterns */}
+        {/* Tactical patterns — now a 6-spoke radar */}
         <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5">
-          <SectionHeader title="Tactical patterns" />
-          <div className="space-y-3">
-            <Tendency
-              label="Pistol W%"
-              value={dossier.tactics.pistolWinPct == null ? '—' : `${dossier.tactics.pistolWinPct}%`}
-              sub={`${dossier.tactics.pistolWins}/${dossier.tactics.pistolPlayed} pistols`}
-              tone={dossier.tactics.pistolWinPct == null ? 'fg' : dossier.tactics.pistolWinPct >= 55 ? 'win-green' : dossier.tactics.pistolWinPct >= 45 ? 'gold' : 'crimson'}
-            />
-            <Tendency
-              label="Bonus-round W%"
-              value={dossier.tactics.bonusRoundWinPct == null ? '—' : `${dossier.tactics.bonusRoundWinPct}%`}
-              sub={`${dossier.tactics.bonusRoundWins}/${dossier.tactics.bonusRoundPlayed} (R2 + R14)`}
-              tone={dossier.tactics.bonusRoundWinPct == null ? 'fg' : dossier.tactics.bonusRoundWinPct >= 55 ? 'win-green' : 'gold'}
-            />
-            <Tendency
-              label="Plant rate (ATK)"
-              value={dossier.tactics.plantRateAtk == null ? '—' : `${dossier.tactics.plantRateAtk}%`}
-              sub={`${dossier.tactics.plantAtkN} ATK rounds`}
-              tone={dossier.tactics.plantRateAtk == null ? 'fg' : dossier.tactics.plantRateAtk >= 45 ? 'win-green' : dossier.tactics.plantRateAtk >= 35 ? 'gold' : 'crimson'}
-            />
-            <Tendency
-              label="Closeout rate"
-              value={dossier.tactics.closeoutRate == null ? '—' : `${dossier.tactics.closeoutRate}%`}
-              sub="map W% when leading 1H"
-              tone="win-green"
-            />
-            <Tendency
-              label="Comeback rate"
-              value={dossier.tactics.comebackRate == null ? '—' : `${dossier.tactics.comebackRate}%`}
-              sub="map W% when trailing 1H"
-              tone={dossier.tactics.comebackRate == null ? 'fg' : dossier.tactics.comebackRate >= 50 ? 'win-green' : 'crimson'}
-            />
-            <Tendency
-              label="OT"
-              value={`${dossier.tactics.otWins}/${dossier.tactics.otPlayed}`}
-              sub="OT maps W/Played"
-              tone="fg"
-            />
-          </div>
+          <SectionHeader title="Tactical signature" sub="pistol · bonus · plant · closeout · comeback · OT" />
+          <TacticalRadar tactics={dossier.tactics} />
         </section>
       </div>
 
       {/* Roster */}
       <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5 mb-6">
-        <SectionHeader title="Roster" sub="role · signature agent · stats vs league baseline" />
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-2xs uppercase tracking-wider text-muted-2 border-b border-line">
-                <th className="text-left py-2 font-medium">Player</th>
-                <th className="text-left py-2 font-medium">Role</th>
-                <th className="text-left py-2 font-medium">Signature</th>
-                <th className="text-right py-2 font-medium">ACS</th>
-                <th className="text-right py-2 font-medium">vs role p50</th>
-                <th className="text-right py-2 font-medium">K/D/A</th>
-                <th className="text-right py-2 font-medium">+/-</th>
-                <th className="text-right py-2 font-medium">Maps</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dossier.roster.map((p) => (
-                <PlayerRow key={p.playerId} p={p} baselines={dossier.roleBaselines} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <SectionHeader title="Roster" sub="ACS positioned within role IQR · row accent = role" />
+        <RosterTable roster={dossier.roster} baselines={dossier.roleBaselines} />
       </section>
 
       {/* Top comps */}
@@ -407,6 +346,11 @@ export default async function ProScoutTeamPage({
       {/* Match history */}
       <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5 mb-6">
         <SectionHeader title="Recent matches" />
+        {dossier.recentMatches.length >= 3 && (
+          <div className="mb-4 pb-4 border-b border-line/40">
+            <FormSparkline matches={dossier.recentMatches} />
+          </div>
+        )}
         <div className="space-y-1">
           {dossier.recentMatches.map((m) => (
             <a
@@ -495,137 +439,3 @@ function Stat({
   )
 }
 
-function Tendency({
-  label,
-  value,
-  sub,
-  tone = 'fg',
-}: {
-  label: string
-  value: string
-  sub: string
-  tone?: 'fg' | 'gold' | 'crimson' | 'win-green'
-}) {
-  const fg =
-    tone === 'gold'
-      ? 'text-gold'
-      : tone === 'win-green'
-      ? 'text-win-green'
-      : tone === 'crimson'
-      ? 'text-crimson'
-      : 'text-fg'
-  return (
-    <div className="bg-surface rounded-md px-3 py-2">
-      <div className="text-2xs uppercase tracking-wider text-muted-2 mb-0.5">{label}</div>
-      <div className={`text-lg font-bold tnum ${fg}`}>{value}</div>
-      <div className="text-2xs text-muted-2 tnum">{sub}</div>
-    </div>
-  )
-}
-
-function MapRow({ m }: { m: ProDossierMapStat }) {
-  return (
-    <div className="grid grid-cols-[1fr_auto_auto] gap-3 items-center py-1.5 px-2 rounded hover:bg-surface-3">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-fg font-medium">{m.mapName}</span>
-          <span className="text-2xs uppercase tracking-wider text-muted-2 tnum">
-            n={m.played}
-          </span>
-          <span className="text-2xs text-muted-2 tnum">
-            pick {m.picked} · opp {m.pickedByOpp} · dec {m.decider}
-          </span>
-        </div>
-        <div className="text-2xs text-muted mt-0.5">
-          atk{' '}
-          <span className={pctClass(m.atkWinPct)}>{m.atkWinPct == null ? '—' : `${m.atkWinPct}%`}</span>
-          {' · '}
-          def{' '}
-          <span className={pctClass(m.defWinPct)}>{m.defWinPct == null ? '—' : `${m.defWinPct}%`}</span>
-          {m.topAgents.length > 0 && (
-            <>
-              {' · '}
-              <span className="text-muted-2">
-                {m.topAgents.slice(0, 5).map((a) => `${a.agent}×${a.count}`).join(', ')}
-              </span>
-            </>
-          )}
-        </div>
-      </div>
-      <span className="font-mono tnum text-xs text-muted">
-        <span className="text-win-green">{m.wins}</span>-
-        <span className="text-crimson">{m.played - m.wins}</span>
-      </span>
-      <span className={`tnum font-bold w-14 text-right ${pctClass(m.winPct)}`}>
-        {m.winPct == null ? '—' : `${m.winPct}%`}
-      </span>
-    </div>
-  )
-}
-
-function PlayerRow({
-  p,
-  baselines,
-}: {
-  p: ProDossierPlayer
-  baselines: ProDossierRoleBaseline[]
-}) {
-  const baseline = p.primaryRole ? baselines.find((b) => b.role === p.primaryRole) : null
-  let delta: number | null = null
-  let deltaTone: 'win-green' | 'crimson' | 'gold' | 'fg' = 'fg'
-  if (baseline?.acsP50 != null && p.avgAcs != null) {
-    delta = Math.round((p.avgAcs - baseline.acsP50) * 10) / 10
-    deltaTone =
-      delta >= 15 ? 'win-green' : delta >= 0 ? 'gold' : delta >= -15 ? 'fg' : 'crimson'
-  }
-  const tone =
-    deltaTone === 'win-green'
-      ? 'text-win-green'
-      : deltaTone === 'gold'
-      ? 'text-gold'
-      : deltaTone === 'crimson'
-      ? 'text-crimson'
-      : 'text-fg'
-
-  return (
-    <tr className="border-b border-line/30">
-      <td className="py-2 font-medium">
-        <Link
-          href={`/pro-scout/players/${encodeURIComponent(p.ign)}`}
-          className="text-fg hover:text-gold transition-colors"
-        >
-          {p.ign}
-        </Link>
-      </td>
-      <td className="py-2 text-muted">{p.primaryRole ?? '—'}</td>
-      <td className="py-2 text-muted">
-        {p.signatureAgent ? `${p.signatureAgent.agent} (×${p.signatureAgent.count})` : '—'}
-      </td>
-      <td className="py-2 text-right tnum text-fg">{p.avgAcs ?? '—'}</td>
-      <td className={`py-2 text-right tnum ${tone}`}>
-        {delta == null
-          ? '—'
-          : `${delta > 0 ? '+' : ''}${delta}`}
-        {baseline && (
-          <span className="text-2xs text-muted-2 ml-1">/p50 {baseline.acsP50?.toFixed(0)}</span>
-        )}
-      </td>
-      <td className="py-2 text-right tnum text-muted">
-        {p.avgK}/{p.avgD}/{p.avgA}
-      </td>
-      <td
-        className={`py-2 text-right tnum ${
-          (p.avgPlusMinus ?? 0) > 0
-            ? 'text-win-green'
-            : (p.avgPlusMinus ?? 0) < 0
-            ? 'text-crimson'
-            : 'text-muted'
-        }`}
-      >
-        {(p.avgPlusMinus ?? 0) > 0 ? '+' : ''}
-        {p.avgPlusMinus}
-      </td>
-      <td className="py-2 text-right tnum text-muted-2">{p.maps}</td>
-    </tr>
-  )
-}
