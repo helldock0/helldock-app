@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import {
   LineChart,
   Line,
@@ -24,6 +25,7 @@ import type {
   Streaks,
   WeeklyRetro,
 } from '@/lib/trends'
+import type { LeverageMoment } from '@/lib/role-impact'
 
 // Stable per-player color (deterministic hash → CSS HSL)
 function colorForPlayer(name: string): string {
@@ -63,6 +65,7 @@ export default function TrendsClient({
   streaks,
   retro,
   totalMatches,
+  highestLeverageMoment,
   children,
 }: {
   rolling: RollingWinPoint[]
@@ -71,6 +74,7 @@ export default function TrendsClient({
   streaks: Streaks
   retro: WeeklyRetro
   totalMatches: number
+  highestLeverageMoment: LeverageMoment | null
   children?: React.ReactNode
 }) {
   // Build the player ACS series data — interleaved by date
@@ -191,6 +195,61 @@ export default function TrendsClient({
           </div>
         </section>
       </div>
+
+      {/* S26 — Highest-leverage moment of the last 7 days */}
+      {highestLeverageMoment && (
+        <section className="bg-surface-2 border border-gold/40 rounded-2xl p-5 mb-6">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-2xs uppercase tracking-[0.16em] text-gold mb-1">
+                ⚡ Highest-leverage moment · last 7 days
+              </p>
+              <h2 className="text-xl font-bold text-fg leading-tight">
+                {highestLeverageMoment.name} ·{' '}
+                <span className="text-gold">{highestLeverageMoment.kind}</span>{' '}
+                vs {highestLeverageMoment.opponent ?? '—'}
+              </h2>
+              <p className="text-xs text-muted mt-1">
+                <Link
+                  href={`/matches/${highestLeverageMoment.matchIdHelldock}?tab=Review&round=${highestLeverageMoment.round_num}`}
+                  className="font-mono text-gold hover:underline"
+                >
+                  {highestLeverageMoment.matchIdHelldock}
+                </Link>{' '}
+                · Round {highestLeverageMoment.round_num} · pre-round WP{' '}
+                <span className="tnum text-fg">
+                  {highestLeverageMoment.wpPctBefore}%
+                </span>{' '}
+                · outcome{' '}
+                <span
+                  className={
+                    highestLeverageMoment.outcome === 'W'
+                      ? 'text-win-green font-bold'
+                      : 'text-crimson font-bold'
+                  }
+                >
+                  {highestLeverageMoment.outcome}
+                </span>
+              </p>
+            </div>
+            <div className="text-right">
+              <div
+                className={`text-3xl font-bold tnum ${
+                  highestLeverageMoment.signedScore >= 0
+                    ? 'text-gold'
+                    : 'text-crimson'
+                }`}
+              >
+                {highestLeverageMoment.signedScore >= 0 ? '+' : ''}
+                {highestLeverageMoment.signedScore.toFixed(2)}
+              </div>
+              <div className="text-2xs uppercase tracking-wider text-muted-2">
+                leverage × weight
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Rolling win rate chart */}
       <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5 mb-6">

@@ -322,6 +322,10 @@ export type PlayerStat = {
   rating2: number | null
   rating2KillsPerRound: number | null
   rating2SurvivalRate: number | null
+  // S26 — WP-weighted leverage carry. Null when WP model can't train (<30 rounds).
+  levCarry: number | null
+  levMoments: number
+  topLeverageMoments: import('@/lib/role-impact').LeverageMoment[]
 }
 
 export type FullMatchPlayer = DashMatchPlayer & {
@@ -635,6 +639,34 @@ export function computePlayerStats(
       rating2: null,
       rating2KillsPerRound: null,
       rating2SurvivalRate: null,
+      // S26 — defaults; merged in by page.tsx via computeRoleImpact.
+      levCarry: null,
+      levMoments: 0,
+      topLeverageMoments: [],
+    }
+  })
+}
+
+/** Merge per-player leverage carry into PlayerStat rows. */
+export function mergePlayerLeverage(
+  players: PlayerStat[],
+  byPlayerId: Record<
+    string,
+    {
+      levCarry: number
+      levMoments: number
+      topMoments: import('@/lib/role-impact').LeverageMoment[]
+    }
+  >
+): PlayerStat[] {
+  return players.map((p) => {
+    const lv = byPlayerId[p.playerId]
+    if (!lv) return p
+    return {
+      ...p,
+      levCarry: lv.levCarry,
+      levMoments: lv.levMoments,
+      topLeverageMoments: lv.topMoments,
     }
   })
 }

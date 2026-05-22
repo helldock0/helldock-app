@@ -33,7 +33,11 @@ import {
   type ReviewItem,
   type ReviewQueueRound,
 } from '@/lib/review-queue'
-import { trainWinProbability, type WPRound } from '@/lib/win-probability'
+import {
+  trainWinProbability,
+  computeMatchWinProbabilities,
+  type WPRound,
+} from '@/lib/win-probability'
 
 export type DiscordMatchSummary = {
   // ── header ──
@@ -257,16 +261,20 @@ function formatKad(
 }
 
 function formatHighlight(h: Highlight): string {
+  // S26 — surface high WP-leverage as a 🎯 tag so coaches see "this clutch
+  // flipped a low-WP round". Threshold 0.7 ≈ pre-round WP ≤ 30% on a win.
+  const levBadge =
+    typeof h.leverage === 'number' && h.leverage >= 0.7 ? ' 🎯' : ''
   if (h.kind === 'clutch') {
-    return `🧊 ${h.player} ${h.clutchType} clutch R${h.round}`
+    return `🧊 ${h.player} ${h.clutchType} clutch R${h.round}${levBadge}`
   }
   if (h.kind === 'ace') {
-    return `💥 ${h.player} ${h.count > 1 ? `${h.count}x ace` : 'ace'}`
+    return `💥 ${h.player} ${h.count > 1 ? `${h.count}x ace` : 'ace'}${levBadge}`
   }
   if (h.kind === 'four_k') {
-    return `🔥 ${h.player} ${h.count > 1 ? `${h.count}x 4K` : '4K'}`
+    return `🔥 ${h.player} ${h.count > 1 ? `${h.count}x 4K` : '4K'}${levBadge}`
   }
-  return `⚡ ${h.player} ${h.count > 1 ? `${h.count}x 3K` : '3K'}`
+  return `⚡ ${h.player} ${h.count > 1 ? `${h.count}x 3K` : '3K'}${levBadge}`
 }
 
 // ── Webhook posters ──────────────────────────────────────────────────────────
@@ -581,9 +589,67 @@ export async function notifyDiscordForMatch(
         four_k: mp.four_k,
         aces: mp.aces,
       }))
+    // S26 — Build per-round WP-leverage map so clutch ranking accounts for
+    // round difficulty (1v3 in 5%-WP eco > 1v3 in 95%-WP full-buy). Best-effort:
+    // if WP fails to train, computeHighlights falls back to base ranking.
+    let wpLeverageByRound: Record<number, number> | undefined
+    try {
+      const { data: histRounds } = await supabase
+        .from('rounds')
+        .select(
+          'match_id, round_num, side, outcome, round_type, our_econ, their_econ, match:matches!inner(team_id, deleted_at)'
+        )
+        .eq('match.team_id', teamId)
+        .is('match.deleted_at', null)
+      const histTyped = (histRounds ?? []) as Array<{
+        match_id: string
+        round_num: number
+        side: string | null
+        outcome: string | null
+        round_type: string | null
+        our_econ: number | null
+        their_econ: number | null
+      }>
+      const wpHist: WPRound[] = histTyped.map((r) => ({
+        match_id: r.match_id,
+        round_num: r.round_num,
+        side: r.side,
+        outcome: r.outcome,
+        round_type: r.round_type,
+        our_econ: r.our_econ,
+        their_econ: r.their_econ,
+      }))
+      const wpModel = trainWinProbability(wpHist)
+      if (wpModel) {
+        const thisMatchWp = computeMatchWinProbabilities(
+          wpModel.weights,
+          rounds
+            .filter((r): r is RoundRow & { round_num: number } => r.round_num != null)
+            .map((r) => ({
+              match_id: matchUUID,
+              round_num: r.round_num as number,
+              side: r.side,
+              outcome: r.outcome,
+              round_type: r.round_type,
+              our_econ: r.our_econ,
+              their_econ: r.their_econ,
+            }))
+        )
+        wpLeverageByRound = {}
+        for (const row of thisMatchWp) {
+          if (row.outcome !== 'W' && row.outcome !== 'L') continue
+          wpLeverageByRound[row.round_num] =
+            row.outcome === 'W' ? 1 - row.wpPct / 100 : row.wpPct / 100
+        }
+      }
+    } catch {
+      // best-effort — skip leverage on any failure
+    }
+
     const highlights = computeHighlights(
       matchPlayersForHighlights,
-      rounds as RoundForHighlights[]
+      rounds as RoundForHighlights[],
+      wpLeverageByRound
     )
 
     const heatmapPng = await renderMatchHeatmapPng({

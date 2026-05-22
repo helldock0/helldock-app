@@ -418,8 +418,8 @@ export async function computePlayerAcsDelta(
 // ── Highlights ───────────────────────────────────────────────────────────────
 
 export type Highlight =
-  | { kind: 'ace' | 'four_k' | 'three_k'; player: string; count: number }
-  | { kind: 'clutch'; player: string; clutchType: string; round: number }
+  | { kind: 'ace' | 'four_k' | 'three_k'; player: string; count: number; leverage?: number }
+  | { kind: 'clutch'; player: string; clutchType: string; round: number; leverage?: number }
 
 export type MatchPlayerForHighlights = {
   display_name: string
@@ -439,18 +439,22 @@ export type RoundForHighlights = {
 const HIGHLIGHT_CAP = 3
 
 // Bigger is better. Tunes the ordering when multiple highlights compete.
+// S26: leverage (0..1) scales the base score by (1 + leverage). A 1v3 in a
+// 5%-WP round (leverage 0.95) becomes 60 × 1.95 = 117 — outranks a plain ace.
 function scoreHighlight(h: Highlight): number {
-  if (h.kind === 'ace') return 100
-  if (h.kind === 'four_k') return 80
-  if (h.kind === 'clutch') {
-    // 1v5 = 90, 1v4 = 75, 1v3 = 60, 1v2 = 30
+  let base: number
+  if (h.kind === 'ace') base = 100
+  else if (h.kind === 'four_k') base = 80
+  else if (h.kind === 'clutch') {
     const denom = parseInt(h.clutchType.replace(/^1v/i, ''), 10)
-    if (denom === 5) return 90
-    if (denom === 4) return 75
-    if (denom === 3) return 60
-    return 30
-  }
-  return 50 // three_k
+    if (denom === 5) base = 90
+    else if (denom === 4) base = 75
+    else if (denom === 3) base = 60
+    else base = 30
+  } else base = 50 // three_k
+
+  const lev = typeof h.leverage === 'number' ? h.leverage : 0
+  return base * (1 + lev)
 }
 
 /**
@@ -461,7 +465,9 @@ function scoreHighlight(h: Highlight): number {
  */
 export function computeHighlights(
   matchPlayers: MatchPlayerForHighlights[],
-  rounds: RoundForHighlights[]
+  rounds: RoundForHighlights[],
+  /** S26 — optional per-round WP leverage (0..1). Boosts clutch ranking. */
+  wpLeverageByRound?: Record<number, number>
 ): Highlight[] {
   const out: Highlight[] = []
 
@@ -487,11 +493,13 @@ export function computeHighlights(
     if (!display) continue
     // Only surface meaningful clutches (1v2+).
     if (!/^1v[2-5]$/i.test(r.clutch_type)) continue
+    const lev = wpLeverageByRound?.[r.round_num]
     out.push({
       kind: 'clutch',
       player: display,
       clutchType: r.clutch_type,
       round: r.round_num,
+      leverage: typeof lev === 'number' ? lev : undefined,
     })
   }
 

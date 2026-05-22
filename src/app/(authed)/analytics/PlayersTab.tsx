@@ -7,7 +7,7 @@ import RatingTrendChart from '@/components/charts/RatingTrendChart'
 
 const EXPAND_HINT_KEY = 'helldock.playersTab.expandHintDismissed'
 
-type SortKey = 'name' | 'games' | 'avgAcs' | 'avgKd' | 'avgPlusMinus' | 'bestMap' | 'delta' | 'fk' | 'fd' | 'plants' | 'defuses' | 'adr' | 'hs' | 'trade' | 'drag' | 'carry' | 'kst' | 'opduel' | 'rating2' | 'twok' | 'acsStdev' | 'postPlant'
+type SortKey = 'name' | 'games' | 'avgAcs' | 'avgKd' | 'avgPlusMinus' | 'bestMap' | 'delta' | 'fk' | 'fd' | 'plants' | 'defuses' | 'adr' | 'hs' | 'trade' | 'drag' | 'carry' | 'kst' | 'opduel' | 'rating2' | 'twok' | 'acsStdev' | 'postPlant' | 'lev'
 type SortDir = 'asc' | 'desc'
 type FocusKey = 'standard' | 'consistency' | 'plant'
 
@@ -100,6 +100,8 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
             return p.acsStdev ?? Infinity
           case 'postPlant':
             return p.postPlantKills ?? -Infinity
+          case 'lev':
+            return p.levCarry ?? -Infinity
         }
       }
       const av = get(a)
@@ -203,6 +205,7 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
             <Th label="Trade%" k="trade" sort={sort} onClick={toggleSort} align="right" tooltip="Of the rounds where you died, % where a teammate killed your killer within 5 seconds. Higher = team plays around you well." />
             <Th label="Drag" k="drag" sort={sort} onClick={toggleSort} align="right" tooltip="How much our round-loss rate goes UP when you die vs when you stay alive (in percentage points, 'pp'). High = the team can't function without you alive." />
             <Th label="Carry" k="carry" sort={sort} onClick={toggleSort} align="right" tooltip="How much our round-win rate goes UP in rounds where you got ≥1 kill vs rounds you got zero (in percentage points, 'pp'). High = your fragging directly wins rounds." />
+            <Th label="Lev" k="lev" sort={sort} onClick={toggleSort} align="right" tooltip="WP-weighted leverage carry. Sum across moments (multikills, clutches, opening duels) weighted by how surprising the round outcome was. A 1v3 in a 5%-WP round is worth ~26× a 3K in a 95%-WP round. Click the row to see top moments." />
             <Th label="KST%" k="kst" sort={sort} onClick={toggleSort} align="right" tooltip="Kill, Survive, or Traded — % of rounds where you contributed (got a kill, stayed alive, OR your death was traded back by a teammate). Consistency metric. 70%+ is good." />
             <Th label="OpDuel" k="opduel" sort={sort} onClick={toggleSort} align="right" tooltip="Opening-duel win rate. When the first kill of a round involved you (your kill OR your death), how often you came out on top." />
             <Th label="2K W%" k="twok" sort={sort} onClick={toggleSort} align="right" tooltip="In rounds where you got 2+ kills, % of those rounds we actually won. High = your multi-kills convert into round wins." />
@@ -387,6 +390,34 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
                       </span>
                     )}
                   </td>
+                  {/* S26 — Leverage carry (WP-weighted moment score) */}
+                  <td
+                    className="px-4 py-3 text-right tnum"
+                    title={
+                      p.levCarry == null
+                        ? 'WP model not trained yet (need ≥30 rounds)'
+                        : `${p.levMoments} moments captured. Expand row to see top 3.`
+                    }
+                  >
+                    {p.levCarry == null ? (
+                      <span className="text-muted-2">—</span>
+                    ) : (
+                      <span
+                        className={`font-semibold ${
+                          p.levCarry >= 2
+                            ? 'text-win-green'
+                            : p.levCarry >= 0.5
+                            ? 'text-gold'
+                            : p.levCarry <= -0.5
+                            ? 'text-crimson'
+                            : 'text-fg'
+                        }`}
+                      >
+                        {p.levCarry > 0 ? '+' : ''}
+                        {p.levCarry.toFixed(2)}
+                      </span>
+                    )}
+                  </td>
                   {/* S17 — advanced metrics */}
                   <td
                     className="px-4 py-3 text-right tnum"
@@ -536,7 +567,7 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
                     key={`${p.playerId}-detail`}
                     className={i !== sorted.length - 1 ? 'border-b border-line' : ''}
                   >
-                    <td colSpan={24} className="bg-surface px-6 py-4 space-y-4">
+                    <td colSpan={25} className="bg-surface px-6 py-4 space-y-4">
                       {/* Rating trend chart */}
                       <div>
                         <div className="flex items-baseline justify-between mb-2">
@@ -560,6 +591,63 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
                           <MiniCard label="Avg Econ" value={p.avgEcon == null ? '—' : String(p.avgEcon)} />
                         </div>
                       </div>
+
+                      {/* S26 — Top leverage moments */}
+                      {p.topLeverageMoments.length > 0 && (
+                        <div>
+                          <div className="flex items-baseline justify-between mb-2">
+                            <div className="text-2xs uppercase tracking-[0.16em] text-muted-2">
+                              Top leverage moments
+                            </div>
+                            <div className="text-2xs text-muted-2 tracking-wider">
+                              WP × kind weight · sign reflects W/L
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            {p.topLeverageMoments.map((m, idx) => (
+                              <Link
+                                key={`${m.matchId}-${m.round_num}-${idx}`}
+                                href={`/matches/${m.matchIdHelldock}?tab=Review&round=${m.round_num}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className={`block bg-surface-2 rounded-lg px-3 py-2 border transition-colors hover:border-gold/50 ${
+                                  m.signedScore >= 0
+                                    ? 'border-gold/30'
+                                    : 'border-crimson/30'
+                                }`}
+                                title={`Round ${m.round_num} · pre-round WP ${m.wpPctBefore}% · ${m.outcome}`}
+                              >
+                                <div className="flex items-baseline justify-between gap-2">
+                                  <span className="text-fg font-semibold text-sm">
+                                    {m.kind}
+                                  </span>
+                                  <span
+                                    className={`text-sm font-bold tnum ${
+                                      m.signedScore >= 0
+                                        ? 'text-gold'
+                                        : 'text-crimson'
+                                    }`}
+                                  >
+                                    {m.signedScore >= 0 ? '+' : ''}
+                                    {m.signedScore.toFixed(2)}
+                                  </span>
+                                </div>
+                                <div className="text-2xs text-muted-2 mt-0.5 truncate">
+                                  {m.matchIdHelldock} · R{m.round_num} ·{' '}
+                                  {m.outcome === 'W' ? (
+                                    <span className="text-win-green">W</span>
+                                  ) : (
+                                    <span className="text-crimson">L</span>
+                                  )}{' '}
+                                  · WP {m.wpPctBefore}%
+                                </div>
+                                <div className="text-2xs text-muted truncate">
+                                  vs {m.opponent ?? '—'}
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       {/* S17 — Impact + consistency cluster */}
                       <div>

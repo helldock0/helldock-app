@@ -11,7 +11,19 @@ import {
   type TrendsMatchPlayer,
 } from '@/lib/trends'
 import type { DashRound } from '@/lib/dashboard'
-import type { WPRound } from '@/lib/win-probability'
+import {
+  trainWinProbability,
+  type WPRound,
+} from '@/lib/win-probability'
+import {
+  computeRoleImpact,
+  pickHighestLeverageMoment,
+  type ImpactRoleRound,
+  type ImpactRoleMatchPlayer,
+  type ImpactRoleKillEvent,
+  type ImpactRoleMatch,
+  type LeverageMoment,
+} from '@/lib/role-impact'
 import TrendsClient from './TrendsClient'
 import ModelHealthPanel from './ModelHealthPanel'
 
@@ -58,7 +70,7 @@ export default async function TrendsPage() {
 
   const matchIds = matches.map((m) => m.id)
 
-  const [roundsRes, mpRes] = await Promise.all([
+  const [roundsRes, mpRes, killRes, mpFullRes] = await Promise.all([
     supabase
       .from('rounds')
       .select('match_id, round_num, half, side, round_type, outcome, first_blood, clutch_type, clutch_player, site, our_econ, their_econ')
@@ -66,6 +78,14 @@ export default async function TrendsPage() {
     supabase
       .from('match_players')
       .select('match_id, player_id, acs, player:players(display_name, roster_status)')
+      .in('match_id', matchIds),
+    supabase
+      .from('kill_events')
+      .select('match_id, round_num, killer_puuid, victim_puuid, killer_is_ours, is_first_blood')
+      .in('match_id', matchIds),
+    supabase
+      .from('match_players')
+      .select('match_id, player_id, puuid, riot_name, player:players(display_name, roster_status)')
       .in('match_id', matchIds),
   ])
   const roundsAll = (roundsRes.data ?? []) as Array<
@@ -93,6 +113,61 @@ export default async function TrendsPage() {
   const streaks = computeStreaks(matches)
   const retro = computeWeeklyRetro(matches, rounds, matchPlayers)
 
+  // S26 — Highest-leverage moment of the last 7 days.
+  let highestLeverageMoment: LeverageMoment | null = null
+  const wpModel = trainWinProbability(wpRounds)
+  if (wpModel) {
+    const roleRounds: ImpactRoleRound[] = roundsAll.map((r) => ({
+      match_id: r.match_id,
+      round_num: r.round_num,
+      side: r.side,
+      outcome: r.outcome,
+      round_type: r.round_type,
+      our_econ: r.our_econ ?? null,
+      their_econ: r.their_econ ?? null,
+      clutch_type: r.clutch_type ?? null,
+      clutch_player: r.clutch_player ?? null,
+    }))
+    const mpFullRaw = (mpFullRes.data ?? []) as unknown as Array<{
+      match_id: string
+      player_id: string | null
+      puuid: string | null
+      riot_name: string | null
+      player: { display_name: string; roster_status?: string } | null
+    }>
+    const roleMatchPlayers: ImpactRoleMatchPlayer[] = mpFullRaw
+      .filter((mp) => mp.player?.roster_status !== 'trial')
+      .map((mp) => ({
+        match_id: mp.match_id,
+        player_id: mp.player_id,
+        puuid: mp.puuid,
+        display_name: mp.player?.display_name ?? null,
+        riot_name: mp.riot_name,
+      }))
+    const roleKillEvents = (killRes.data ?? []) as ImpactRoleKillEvent[]
+    const roleMatches: ImpactRoleMatch[] = matches.map((m) => ({
+      id: m.id,
+      match_id_helldock: m.match_id_helldock,
+      opponent_name: m.opponent_name,
+      match_date: m.match_date,
+    }))
+    const role = computeRoleImpact(
+      roleMatchPlayers,
+      roleRounds,
+      roleKillEvents,
+      roleMatches,
+      wpModel.weights
+    )
+    // Look back 7 days from today (use the latest match_date as anchor to
+    // tolerate clocks; fall back to wall time if matches are sparse).
+    const today = new Date().toISOString().slice(0, 10)
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10)
+    void today
+    highestLeverageMoment = pickHighestLeverageMoment(role.moments, sevenDaysAgo)
+  }
+
   return (
     <TrendsClient
       rolling={rolling}
@@ -101,6 +176,7 @@ export default async function TrendsPage() {
       streaks={streaks}
       retro={retro}
       totalMatches={matches.length}
+      highestLeverageMoment={highestLeverageMoment}
     >
       <ModelHealthPanel rounds={wpRounds} />
     </TrendsClient>

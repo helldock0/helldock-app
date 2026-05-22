@@ -10,6 +10,7 @@ import {
   computeCompMatrix,
   computeMapPoolHealth,
   mergePlayerImpact,
+  mergePlayerLeverage,
   type FullMatchPlayer,
 } from '@/lib/analytics'
 import {
@@ -18,6 +19,14 @@ import {
   type ImpactMatchPlayer,
   type ImpactKillEvent,
 } from '@/lib/impact'
+import {
+  computeRoleImpact,
+  type ImpactRoleRound,
+  type ImpactRoleMatchPlayer,
+  type ImpactRoleKillEvent,
+  type ImpactRoleMatch,
+} from '@/lib/role-impact'
+import { trainWinProbability, type WPRound } from '@/lib/win-probability'
 import { computeCompSynergy } from '@/lib/comp-synergy'
 import {
   computeMultiKillLeaders,
@@ -100,7 +109,7 @@ export default async function AnalyticsPage({
   const [roundsRes, mpRes, oppRes, killRes] = await Promise.all([
     supabase
       .from('rounds')
-      .select('match_id, round_num, half, side, round_type, outcome, first_blood, clutch_type, clutch_player, site, plant_time_in_round, defuse_time_in_round, our_ults_used, their_ults_used, coach_grade, coach_tags, was_traded')
+      .select('match_id, round_num, half, side, round_type, outcome, first_blood, clutch_type, clutch_player, site, plant_time_in_round, defuse_time_in_round, our_ults_used, their_ults_used, coach_grade, coach_tags, was_traded, our_econ, their_econ')
       .in('match_id', matchIds),
     supabase
       .from('match_players')
@@ -250,7 +259,71 @@ export default async function AnalyticsPage({
   const impactByPlayerId = Object.fromEntries(
     impacts.map((i) => [i.playerId, i])
   )
-  const players = mergePlayerImpact(playersBase, impactByPlayerId)
+  let players = mergePlayerImpact(playersBase, impactByPlayerId)
+
+  // S26 — train WP model on ALL filtered rounds, then compute leverage carry.
+  // The model needs our_econ/their_econ which we added to the SELECT above.
+  const wpRounds: WPRound[] = filteredRounds.map((r) => ({
+    match_id: r.match_id,
+    round_num: r.round_num,
+    side: r.side,
+    outcome: r.outcome,
+    round_type: r.round_type,
+    our_econ: (r as { our_econ?: number | null }).our_econ ?? null,
+    their_econ: (r as { their_econ?: number | null }).their_econ ?? null,
+  }))
+  const wpModel = trainWinProbability(wpRounds)
+  if (wpModel) {
+    const roleRounds: ImpactRoleRound[] = filteredRounds.map((r) => ({
+      match_id: r.match_id,
+      round_num: r.round_num,
+      side: r.side,
+      outcome: r.outcome,
+      round_type: r.round_type,
+      our_econ: (r as { our_econ?: number | null }).our_econ ?? null,
+      their_econ: (r as { their_econ?: number | null }).their_econ ?? null,
+      clutch_type: r.clutch_type ?? null,
+      clutch_player: r.clutch_player ?? null,
+    }))
+    const roleMatchPlayers: ImpactRoleMatchPlayer[] = filteredMatchPlayers.map(
+      (mp) => ({
+        match_id: mp.match_id,
+        player_id: mp.player_id,
+        puuid: mp.puuid ?? null,
+        display_name: mp.player?.display_name ?? null,
+        riot_name: (mp as { riot_name?: string | null }).riot_name ?? null,
+      })
+    )
+    const roleKillEvents: ImpactRoleKillEvent[] = filteredAllKills.map((k) => ({
+      match_id: k.match_id,
+      round_num: k.round_num,
+      killer_puuid: k.killer_puuid ?? null,
+      victim_puuid: k.victim_puuid ?? null,
+      killer_is_ours: k.killer_is_ours ?? null,
+      is_first_blood: k.is_first_blood ?? null,
+    }))
+    const roleMatches: ImpactRoleMatch[] = filteredMatches.map((m) => ({
+      id: m.id,
+      match_id_helldock: m.match_id_helldock,
+      opponent_name: m.opponent_name,
+      match_date: m.match_date,
+    }))
+    const role = computeRoleImpact(
+      roleMatchPlayers,
+      roleRounds,
+      roleKillEvents,
+      roleMatches,
+      wpModel.weights
+    )
+    const byPid = Object.fromEntries(
+      role.players.map((p) => [
+        p.playerId,
+        { levCarry: p.levCarry, levMoments: p.levMoments, topMoments: p.topMoments },
+      ])
+    )
+    players = mergePlayerLeverage(players, byPid)
+  }
+
   const mostDepended = pickMostDepended(impacts)
   const coachSummary = computeCoachSummary(filteredMatches, filteredRounds, filteredMatchPlayers)
   // Override coach-summary's most-depended (the compute fn returns it as null;
