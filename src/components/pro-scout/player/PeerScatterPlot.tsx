@@ -21,9 +21,12 @@ import type { PeerScatterPoint } from '@/lib/pro-scout/types'
 export default function PeerScatterPlot({
   points,
   height = 360,
+  accent = CHART_COLORS.gold,
 }: {
   points: PeerScatterPoint[]
   height?: number
+  /** Color used to highlight the focal player dot. Defaults to gold. */
+  accent?: string
 }) {
   if (points.length < 3) {
     return <p className="text-sm text-muted-2">need 3+ peers to plot</p>
@@ -105,7 +108,7 @@ export default function PeerScatterPlot({
             <Scatter
               name="focal"
               data={focal}
-              fill={CHART_COLORS.gold}
+              fill={accent}
               stroke={CHART_COLORS.fg}
               strokeWidth={2}
               isAnimationActive={false}

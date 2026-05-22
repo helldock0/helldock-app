@@ -14,9 +14,11 @@ const defaultHref = (p: SimilarPlayer) =>
 export default function SimilarPlayersList({
   players,
   hrefFor = defaultHref,
+  accent = '#FFD700',
 }: {
   players: SimilarPlayer[]
   hrefFor?: (p: SimilarPlayer) => string
+  accent?: string
 }) {
   if (players.length === 0) {
     return <p className="text-2xs text-muted-2">no comparable peers</p>
@@ -48,7 +50,10 @@ export default function SimilarPlayersList({
               </div>
             </div>
             <div className="text-right shrink-0">
-              <div className="font-mono tnum text-sm font-bold text-gold">
+              <div
+                className="font-mono tnum text-sm font-bold"
+                style={{ color: accent }}
+              >
                 {Math.round(p.similarity * 100)}%
               </div>
               <div className="text-2xs text-muted-2 tnum">

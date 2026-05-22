@@ -1,13 +1,13 @@
-import type { PercentileCategory, PercentileSlice } from '@/lib/pro-scout/types'
+import type { PercentileSlice } from '@/lib/pro-scout/types'
+import { CATEGORY_OPACITY } from '@/lib/dossier/role-colors'
 
-const CATEGORY_COLOR: Record<PercentileCategory, string> = {
-  firepower: '#FFD700',
-  impact: '#DC143C',
-  survival: '#34D399',
-  consistency: '#60A5FA',
-}
-
-export default function TopPercentilesList({ slices }: { slices: PercentileSlice[] }) {
+export default function TopPercentilesList({
+  slices,
+  accent = '#FFD700',
+}: {
+  slices: PercentileSlice[]
+  accent?: string
+}) {
   if (slices.length === 0) {
     return <p className="text-2xs text-muted-2">not enough peers to rank</p>
   }
@@ -27,7 +27,8 @@ export default function TopPercentilesList({ slices }: { slices: PercentileSlice
               className="h-full rounded-full"
               style={{
                 width: `${s.percentile ?? 0}%`,
-                backgroundColor: CATEGORY_COLOR[s.category],
+                backgroundColor: accent,
+                opacity: CATEGORY_OPACITY[s.category],
               }}
             />
           </div>

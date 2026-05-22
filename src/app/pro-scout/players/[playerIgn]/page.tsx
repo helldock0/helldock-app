@@ -9,6 +9,7 @@ import SimilarPlayersList from '@/components/pro-scout/player/SimilarPlayersList
 import AgentMapGrid from '@/components/pro-scout/player/AgentMapGrid'
 import PeerScatterPlot from '@/components/pro-scout/player/PeerScatterPlot'
 import RecentFormStrip from '@/components/pro-scout/player/RecentFormStrip'
+import { roleAccent } from '@/lib/dossier/role-colors'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +42,7 @@ export default async function ProScoutPlayerPage({
   if (!dossier) notFound()
 
   const { player, career, sample, slices, topPercentiles, similarPlayers, agentMapGrid, peerScatter, recentForm } = dossier
+  const accent = roleAccent(player.primaryRole)
 
   return (
     <main className="min-h-screen px-6 py-8 max-w-7xl mx-auto">
@@ -127,11 +129,11 @@ export default async function ProScoutPlayerPage({
             title="Percentile profile"
             sub={`vs ${player.primaryRole ?? 'all'} peers in VCT CN · 0–100`}
           />
-          <RadarPizzaChart slices={slices} />
+          <RadarPizzaChart slices={slices} accent={accent} />
         </section>
         <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5">
           <SectionHeader title="Top 5 percentiles" />
-          <TopPercentilesList slices={topPercentiles} />
+          <TopPercentilesList slices={topPercentiles} accent={accent} />
         </section>
       </div>
 
@@ -139,7 +141,7 @@ export default async function ProScoutPlayerPage({
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-5 mb-6">
         <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5">
           <SectionHeader title="Most similar" sub="cosine on percentile vector" />
-          <SimilarPlayersList players={similarPlayers} />
+          <SimilarPlayersList players={similarPlayers} accent={accent} />
         </section>
         <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5">
           <SectionHeader title="Agent × map" sub="avg ACS · darker = higher · hover for detail" />
@@ -149,6 +151,7 @@ export default async function ProScoutPlayerPage({
             cells={agentMapGrid.cells}
             minAcs={agentMapGrid.minAcs}
             maxAcs={agentMapGrid.maxAcs}
+            accent={accent}
           />
         </section>
       </div>
@@ -157,9 +160,9 @@ export default async function ProScoutPlayerPage({
       <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5 mb-6">
         <SectionHeader
           title="Peer cloud"
-          sub={`K/D × ACS · ${peerScatter.length - 1} ${player.primaryRole ?? 'pro'} peers · ${player.ign} in gold`}
+          sub={`K/D × ACS · ${peerScatter.length - 1} ${player.primaryRole ?? 'pro'} peers · ${player.ign} highlighted`}
         />
-        <PeerScatterPlot points={peerScatter} />
+        <PeerScatterPlot points={peerScatter} accent={accent} />
       </section>
 
       {/* Recent form */}

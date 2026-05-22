@@ -36,6 +36,7 @@ import PitchHeatmapStrip, {
 import type { SimilarPlayer } from '@/lib/pro-scout/types'
 import type { Map as ValMap } from '@/lib/valorant'
 import { MAPS } from '@/lib/valorant'
+import { roleAccent } from '@/lib/dossier/role-colors'
 
 export const dynamic = 'force-dynamic'
 
@@ -187,6 +188,7 @@ export default async function PlayerProfilePage({
   }
   const similarHref = (sp: SimilarPlayer): string =>
     sp.linkId ? `/players/${sp.linkId}` : '#'
+  const accent = roleAccent(dossier?.focal.primaryRole ?? null)
 
   return (
     <main className="px-6 py-6 max-w-6xl mx-auto">
@@ -260,11 +262,11 @@ export default async function PlayerProfilePage({
                 vs {dossier.focal.primaryRole ?? 'all'} peers across all scrim
                 match_players · 0–100
               </p>
-              <RadarPizzaChart slices={dossier.slices} />
+              <RadarPizzaChart slices={dossier.slices} accent={accent} />
             </section>
             <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5">
               <SectionHeader title="Top 5 percentiles" />
-              <TopPercentilesList slices={dossier.topPercentiles} />
+              <TopPercentilesList slices={dossier.topPercentiles} accent={accent} />
             </section>
           </div>
 
@@ -277,6 +279,7 @@ export default async function PlayerProfilePage({
               <SimilarPlayersList
                 players={dossier.similarPlayers}
                 hrefFor={similarHref}
+                accent={accent}
               />
             </section>
             <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5">
@@ -290,6 +293,7 @@ export default async function PlayerProfilePage({
                 cells={dossier.agentMapGrid.cells}
                 minAcs={dossier.agentMapGrid.minAcs}
                 maxAcs={dossier.agentMapGrid.maxAcs}
+                accent={accent}
               />
             </section>
           </div>
@@ -298,9 +302,9 @@ export default async function PlayerProfilePage({
             <SectionHeader title="Peer cloud" />
             <p className="text-2xs uppercase tracking-wider text-muted-2 -mt-2 mb-3">
               K/D × ACS · {dossier.peerScatter.length - 1}{' '}
-              {dossier.focal.primaryRole ?? 'overall'} peers · {me.name} in gold
+              {dossier.focal.primaryRole ?? 'overall'} peers · {me.name} highlighted
             </p>
-            <PeerScatterPlot points={dossier.peerScatter} />
+            <PeerScatterPlot points={dossier.peerScatter} accent={accent} />
           </section>
 
           {heatmapTiles.length > 0 && (

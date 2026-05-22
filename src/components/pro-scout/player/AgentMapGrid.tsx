@@ -3,14 +3,31 @@
 import { useState } from 'react'
 import type { AgentMapCell } from '@/lib/pro-scout/types'
 
-// Map ACS in [minAcs, maxAcs] to an opacity 0.15..1 over the gold ramp.
-function scaleColor(acs: number | null, min: number | null, max: number | null): string {
+// Parse #RRGGBB into "r, g, b" so we can drop it into an rgba() string. We do
+// this once per render and reuse for every cell.
+function hexToRgbTriplet(hex: string): string {
+  const h = hex.replace('#', '')
+  const n = h.length === 3
+    ? h.split('').map((c) => c + c).join('')
+    : h
+  const r = parseInt(n.slice(0, 2), 16)
+  const g = parseInt(n.slice(2, 4), 16)
+  const b = parseInt(n.slice(4, 6), 16)
+  return `${r}, ${g}, ${b}`
+}
+
+function scaleColor(
+  acs: number | null,
+  min: number | null,
+  max: number | null,
+  triplet: string
+): string {
   if (acs == null || min == null || max == null || max <= min) {
-    return 'rgba(255, 215, 0, 0.18)'
+    return `rgba(${triplet}, 0.18)`
   }
   const t = Math.max(0, Math.min(1, (acs - min) / (max - min)))
   const alpha = 0.15 + t * 0.85
-  return `rgba(255, 215, 0, ${alpha.toFixed(2)})`
+  return `rgba(${triplet}, ${alpha.toFixed(2)})`
 }
 
 export default function AgentMapGrid({
@@ -19,13 +36,16 @@ export default function AgentMapGrid({
   cells,
   maxAcs,
   minAcs,
+  accent = '#FFD700',
 }: {
   agents: string[]
   maps: string[]
   cells: AgentMapCell[]
   maxAcs: number | null
   minAcs: number | null
+  accent?: string
 }) {
+  const triplet = hexToRgbTriplet(accent)
   const [hover, setHover] = useState<AgentMapCell | null>(null)
   const cellMap = new Map<string, AgentMapCell>(
     cells.map((c) => [`${c.agent}__${c.mapName}`, c])
@@ -63,7 +83,7 @@ export default function AgentMapGrid({
               </div>
               {maps.map((m) => {
                 const cell = cellMap.get(`${agent}__${m}`) ?? null
-                const bg = cell ? scaleColor(cell.avgAcs, minAcs, maxAcs) : 'transparent'
+                const bg = cell ? scaleColor(cell.avgAcs, minAcs, maxAcs, triplet) : 'transparent'
                 const border = cell ? 'border-line/40' : 'border-line/15'
                 return (
                   <div
@@ -96,8 +116,8 @@ export default function AgentMapGrid({
           <span>cell = avg ACS · darker = higher</span>
           {hover && (
             <span className="text-fg">
-              <span className="text-gold">{hover.agent}</span> on{' '}
-              <span className="text-gold">{hover.mapName}</span>:{' '}
+              <span style={{ color: accent }}>{hover.agent}</span> on{' '}
+              <span style={{ color: accent }}>{hover.mapName}</span>:{' '}
               {hover.played} maps, {hover.wins}-{hover.played - hover.wins} (
               {hover.winPct ?? '—'}%), {hover.avgAcs ?? '—'} ACS,{' '}
               {(hover.avgPlusMinus ?? 0) > 0 ? '+' : ''}
