@@ -35,6 +35,14 @@ export async function middleware(request: NextRequest) {
   // /pro-scout is the public VCT scouting surface — readable without login.
   const isPublicPath = request.nextUrl.pathname.startsWith('/pro-scout')
 
+  // Unauthenticated visitors hitting the bare host land on the public
+  // pro-scout module (the TEC-facing surface), not the private login wall.
+  if (!user && request.nextUrl.pathname === '/') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/pro-scout'
+    return NextResponse.redirect(url)
+  }
+
   // Unauthenticated → redirect to /login (unless on auth or public path)
   if (!user && !isAuthPath && !isPublicPath) {
     const url = request.nextUrl.clone()
