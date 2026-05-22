@@ -589,7 +589,14 @@ function PlayerRow({
 
   return (
     <tr className="border-b border-line/30">
-      <td className="py-2 font-medium text-fg">{p.ign}</td>
+      <td className="py-2 font-medium">
+        <Link
+          href={`/pro-scout/players/${encodeURIComponent(p.ign)}`}
+          className="text-fg hover:text-gold transition-colors"
+        >
+          {p.ign}
+        </Link>
+      </td>
       <td className="py-2 text-muted">{p.primaryRole ?? '—'}</td>
       <td className="py-2 text-muted">
         {p.signatureAgent ? `${p.signatureAgent.agent} (×${p.signatureAgent.count})` : '—'}

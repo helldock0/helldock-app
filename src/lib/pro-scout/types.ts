@@ -124,3 +124,110 @@ export type ProTeamDossier = {
   recentMatches: ProDossierMatch[]
   roleBaselines: ProDossierRoleBaseline[]
 }
+
+// ── Player dossier ─────────────────────────────────────────────────────────
+
+export type PercentileCategory = 'firepower' | 'impact' | 'survival' | 'consistency'
+
+export type PercentileSlice = {
+  key: string                  // stable id, e.g. 'acs'
+  label: string                // 'ACS'
+  category: PercentileCategory
+  value: number | null         // raw value (for tooltip)
+  percentile: number | null    // 0..100 vs role peers
+  higherBetter: boolean
+}
+
+export type SimilarPlayer = {
+  ign: string
+  teamId: string | null
+  teamName: string | null
+  primaryRole: AgentRole | null
+  signatureAgent: string | null
+  avgAcs: number | null
+  similarity: number           // 0..1 cosine on percentile vector
+  maps: number
+}
+
+export type AgentMapCell = {
+  agent: string
+  mapName: string
+  sample: number               // # of maps played on (agent, map)
+  avgAcs: number | null
+  avgPlusMinus: number | null
+  wins: number
+  played: number
+  winPct: number | null
+}
+
+export type RecentFormEntry = {
+  mapResultId: string
+  date: string | null
+  mapName: string
+  agent: string | null
+  opponentName: string | null
+  acs: number | null
+  k: number | null
+  d: number | null
+  a: number | null
+  plusMinus: number | null
+  result: 'W' | 'L' | 'T'
+  matchUrl: string | null
+}
+
+export type PeerScatterPoint = {
+  ign: string
+  teamName: string | null
+  primaryRole: AgentRole | null
+  x: number                    // K/D ratio
+  y: number                    // ACS
+  maps: number
+  isFocal: boolean
+}
+
+export type ProPlayerSummary = {
+  ign: string
+  realName: string | null
+  country: string | null
+  teamId: string | null
+  teamName: string | null
+  teamTag: string | null
+  teamSlug: string | null
+  primaryRole: AgentRole | null
+  signatureAgent: { agent: string; count: number } | null
+  topAgents: { agent: string; count: number }[]
+}
+
+export type ProPlayerCareer = {
+  matches: number              // distinct series
+  maps: number                 // distinct maps played
+  wins: number
+  losses: number
+  winPct: number | null
+  avgAcs: number | null
+  avgK: number | null
+  avgD: number | null
+  avgA: number | null
+  avgPlusMinus: number | null
+  avgFk: number | null
+  kdRatio: number | null
+  lastPlayed: string | null
+}
+
+export type ProPlayerDossier = {
+  player: ProPlayerSummary
+  career: ProPlayerCareer
+  sample: 'ok' | 'small'       // 'small' if <5 maps with stats
+  slices: PercentileSlice[]    // ~10 stats, ordered for radar
+  topPercentiles: PercentileSlice[]  // top 5 by percentile desc
+  similarPlayers: SimilarPlayer[]    // up to 12
+  agentMapGrid: {
+    agents: string[]           // row order
+    maps: string[]             // col order
+    cells: AgentMapCell[]
+    maxAcs: number | null      // for color scale
+    minAcs: number | null
+  }
+  peerScatter: PeerScatterPoint[]    // role peers + focal
+  recentForm: RecentFormEntry[]      // last 10
+}
