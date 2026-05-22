@@ -147,6 +147,7 @@ export type SimilarPlayer = {
   avgAcs: number | null
   similarity: number           // 0..1 cosine on percentile vector
   maps: number
+  linkId?: string | null       // optional concrete id for routing (player.id, etc.)
 }
 
 export type AgentMapCell = {

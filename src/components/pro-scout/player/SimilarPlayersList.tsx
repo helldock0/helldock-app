@@ -8,16 +8,33 @@ function cleanTeamName(name: string | null): string {
   return m ? m[1].trim() : name.trim()
 }
 
-export default function SimilarPlayersList({ players }: { players: SimilarPlayer[] }) {
+const defaultHref = (p: SimilarPlayer) =>
+  `/pro-scout/players/${encodeURIComponent(p.ign)}`
+
+export default function SimilarPlayersList({
+  players,
+  hrefFor = defaultHref,
+}: {
+  players: SimilarPlayer[]
+  hrefFor?: (p: SimilarPlayer) => string
+}) {
   if (players.length === 0) {
     return <p className="text-2xs text-muted-2">no comparable peers</p>
   }
   return (
     <ul className="space-y-1.5">
-      {players.map((p) => (
-        <li key={p.ign}>
-          <Link
-            href={`/pro-scout/players/${encodeURIComponent(p.ign)}`}
+      {players.map((p) => {
+        const href = hrefFor(p)
+        const Wrapper = ({ children }: { children: React.ReactNode }) =>
+          href && href !== '#' ? (
+            <Link href={href} className="contents">{children}</Link>
+          ) : (
+            <>{children}</>
+          )
+        return (
+        <li key={`${p.ign}-${p.teamId ?? 'na'}`}>
+          <Wrapper>
+          <div
             className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-2 py-2 rounded-md hover:bg-surface-3 transition-colors"
           >
             <IgnAvatar ign={p.ign} size={28} />
@@ -38,9 +55,11 @@ export default function SimilarPlayersList({ players }: { players: SimilarPlayer
                 {p.avgAcs ?? '—'} ACS
               </div>
             </div>
-          </Link>
+          </div>
+          </Wrapper>
         </li>
-      ))}
+        )
+      })}
     </ul>
   )
 }

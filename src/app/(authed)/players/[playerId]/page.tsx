@@ -20,6 +20,22 @@ import {
 } from '@/lib/player-profile'
 import type { DashMatch } from '@/lib/dashboard'
 import RatingTrendChart from '@/components/charts/RatingTrendChart'
+import {
+  computeInternalPlayerDossier,
+  fetchFocalKillEvents,
+} from '@/lib/dossier/internal-player'
+import IgnAvatar from '@/components/pro-scout/player/IgnAvatar'
+import RadarPizzaChart from '@/components/pro-scout/player/RadarPizzaChart'
+import TopPercentilesList from '@/components/pro-scout/player/TopPercentilesList'
+import SimilarPlayersList from '@/components/pro-scout/player/SimilarPlayersList'
+import AgentMapGrid from '@/components/pro-scout/player/AgentMapGrid'
+import PeerScatterPlot from '@/components/pro-scout/player/PeerScatterPlot'
+import PitchHeatmapStrip, {
+  type DossierMapTile,
+} from '@/components/dossier/PitchHeatmapStrip'
+import type { SimilarPlayer } from '@/lib/pro-scout/types'
+import type { Map as ValMap } from '@/lib/valorant'
+import { MAPS } from '@/lib/valorant'
 
 export const dynamic = 'force-dynamic'
 
@@ -143,6 +159,35 @@ export default async function PlayerProfilePage({
   const overallWinPct =
     me.games > 0 ? Math.round((recordW / me.games) * 1000) / 10 : null
 
+  // ── Dossier overview ──
+  const dossier = await computeInternalPlayerDossier(
+    supabase as unknown as Parameters<typeof computeInternalPlayerDossier>[0],
+    playerId
+  )
+  let heatmapTiles: DossierMapTile[] = []
+  if (dossier && dossier.topMaps.length > 0) {
+    const validMaps = (MAPS as readonly string[])
+    const wantedMaps = dossier.topMaps
+      .filter((m) => validMaps.includes(m.mapName))
+      .map((m) => m.mapName)
+    if (wantedMaps.length > 0 && dossier.focal.puuids.length > 0) {
+      const killsByMap = await fetchFocalKillEvents(
+        supabase as unknown as Parameters<typeof fetchFocalKillEvents>[0],
+        dossier.focal.puuids,
+        wantedMaps
+      )
+      heatmapTiles = dossier.topMaps
+        .filter((m) => validMaps.includes(m.mapName))
+        .map((m) => ({
+          mapName: m.mapName as ValMap,
+          played: m.played,
+          kills: killsByMap.get(m.mapName) ?? [],
+        }))
+    }
+  }
+  const similarHref = (sp: SimilarPlayer): string =>
+    sp.linkId ? `/players/${sp.linkId}` : '#'
+
   return (
     <main className="px-6 py-6 max-w-6xl mx-auto">
       <div className="mb-6">
@@ -158,8 +203,31 @@ export default async function PlayerProfilePage({
         <h1 className="text-3xl font-bold text-fg leading-tight">{me.name}</h1>
       </div>
 
-      {/* Header strip */}
+      {/* Header strip — now with avatar + signature agent + role */}
       <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5 mb-6">
+        <div className="flex flex-wrap items-start gap-5 mb-4">
+          <IgnAvatar ign={me.name} size={72} />
+          <div className="flex-1 min-w-0">
+            <p className="text-2xs uppercase tracking-[0.25em] text-muted-2 mb-1">
+              {dossier?.focal.primaryRole ?? me.topAgent?.agent ?? 'flex'}
+              {dossier?.focal.teamName && ` · ${dossier.focal.teamName}`}
+            </p>
+            <h2 className="text-2xl font-bold text-fg leading-tight">{me.name}</h2>
+            {dossier?.focal.signatureAgent && (
+              <p className="text-xs text-muted mt-1">
+                signature{' '}
+                <span className="text-fg">{dossier.focal.signatureAgent.agent}</span> (
+                ×{dossier.focal.signatureAgent.count})
+                {dossier.focal.topAgents.length > 1 && (
+                  <span className="text-muted-2 ml-2">
+                    pool:{' '}
+                    {dossier.focal.topAgents.slice(0, 4).map((a) => `${a.agent}×${a.count}`).join(' · ')}
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-center">
           <Stat label="Played" value={String(me.games)} />
           <Stat
@@ -175,7 +243,77 @@ export default async function PlayerProfilePage({
             color={me.rating2 != null && me.rating2 >= 1.0 ? 'win-green' : 'fg'}
           />
         </div>
+        {dossier?.sample === 'small' && (
+          <div className="mt-4 text-2xs uppercase tracking-wider text-crimson border border-crimson/40 bg-crimson/5 rounded-md px-3 py-2 inline-block">
+            small sample ({dossier.focal.maps} maps) — percentiles below are unreliable
+          </div>
+        )}
       </section>
+
+      {/* Dossier overview — radar / similars / grid / scatter / heatmap */}
+      {dossier && (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-5 mb-6">
+            <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5">
+              <SectionHeader title="Percentile profile" />
+              <p className="text-2xs uppercase tracking-wider text-muted-2 -mt-2 mb-3">
+                vs {dossier.focal.primaryRole ?? 'all'} peers across all scrim
+                match_players · 0–100
+              </p>
+              <RadarPizzaChart slices={dossier.slices} />
+            </section>
+            <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5">
+              <SectionHeader title="Top 5 percentiles" />
+              <TopPercentilesList slices={dossier.topPercentiles} />
+            </section>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-5 mb-6">
+            <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5">
+              <SectionHeader title="Most similar" />
+              <p className="text-2xs uppercase tracking-wider text-muted-2 -mt-2 mb-3">
+                cosine on percentile vector
+              </p>
+              <SimilarPlayersList
+                players={dossier.similarPlayers}
+                hrefFor={similarHref}
+              />
+            </section>
+            <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5">
+              <SectionHeader title="Agent × map" />
+              <p className="text-2xs uppercase tracking-wider text-muted-2 -mt-2 mb-3">
+                avg ACS · darker = higher · hover for detail
+              </p>
+              <AgentMapGrid
+                agents={dossier.agentMapGrid.agents}
+                maps={dossier.agentMapGrid.maps}
+                cells={dossier.agentMapGrid.cells}
+                minAcs={dossier.agentMapGrid.minAcs}
+                maxAcs={dossier.agentMapGrid.maxAcs}
+              />
+            </section>
+          </div>
+
+          <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5 mb-6">
+            <SectionHeader title="Peer cloud" />
+            <p className="text-2xs uppercase tracking-wider text-muted-2 -mt-2 mb-3">
+              K/D × ACS · {dossier.peerScatter.length - 1}{' '}
+              {dossier.focal.primaryRole ?? 'overall'} peers · {me.name} in gold
+            </p>
+            <PeerScatterPlot points={dossier.peerScatter} />
+          </section>
+
+          {heatmapTiles.length > 0 && (
+            <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5 mb-6">
+              <SectionHeader title="Kill positions" />
+              <p className="text-2xs uppercase tracking-wider text-muted-2 -mt-2 mb-3">
+                top {heatmapTiles.length} maps · dots at victim position
+              </p>
+              <PitchHeatmapStrip tiles={heatmapTiles} />
+            </section>
+          )}
+        </>
+      )}
 
       {/* Impact + consistency */}
       <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5 mb-6">
