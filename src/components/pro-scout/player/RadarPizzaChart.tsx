@@ -15,11 +15,17 @@ const CATEGORY_LABEL: Record<PercentileCategory, string> = {
   consistency: 'Consistency',
 }
 
-const SIZE = 360
-const CX = SIZE / 2
-const CY = SIZE / 2
+// Chart math is centered at (CX, CY) with radius R_OUTER. ViewBox is padded
+// horizontally (negative VIEW_X start, wider VIEW_W) so long labels at the
+// 3 and 9 o'clock positions ("ACS consist.", "+/- per map") don't overflow.
+const CX = 180
+const CY = 180
 const R_OUTER = 130
 const R_LABEL = R_OUTER + 18
+const VIEW_X = -30
+const VIEW_Y = 0
+const VIEW_W = 420
+const VIEW_H = 360
 const GUIDE_RINGS = [0.25, 0.5, 0.75, 1]
 
 function polar(angle: number, radius: number): [number, number] {
@@ -58,7 +64,10 @@ export default function RadarPizzaChart({
 
   return (
     <div className="w-full flex flex-col items-center">
-      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="w-full max-w-[360px]">
+      <svg
+        viewBox={`${VIEW_X} ${VIEW_Y} ${VIEW_W} ${VIEW_H}`}
+        className="w-full max-w-[420px]"
+      >
         {/* Guide rings */}
         {GUIDE_RINGS.map((g, i) => (
           <circle

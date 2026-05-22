@@ -15,11 +15,17 @@ type Spoke = {
   sub: string              // small caption under hover detail
 }
 
-const SIZE = 260
-const CX = SIZE / 2
-const CY = SIZE / 2
+// Chart math is centered at (CX, CY) with radius R_OUTER. The SVG viewBox
+// is padded horizontally (negative VIEW_X start, wider VIEW_W) so labels at
+// 3 and 9 o'clock ("Bonus", "Comeback") don't overflow.
+const CX = 130
+const CY = 130
 const R_OUTER = 96
 const R_LABEL = R_OUTER + 18
+const VIEW_W = 320
+const VIEW_H = 260
+const VIEW_X = -30     // (VIEW_W - 260) / 2 of left padding, signed negative
+const VIEW_Y = 0
 const GUIDE_RINGS = [0.25, 0.5, 0.75, 1]
 
 function polar(angle: number, radius: number): [number, number] {
@@ -71,7 +77,10 @@ export default function TacticalRadar({
 
   return (
     <div className="w-full flex flex-col items-center">
-      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="w-full max-w-[260px]">
+      <svg
+        viewBox={`${VIEW_X} ${VIEW_Y} ${VIEW_W} ${VIEW_H}`}
+        className="w-full max-w-[320px]"
+      >
         {/* Guide rings + axis marks at 25/50/75 */}
         {GUIDE_RINGS.map((g, i) => (
           <circle
