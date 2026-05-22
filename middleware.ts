@@ -32,8 +32,11 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith('/login') ||
     request.nextUrl.pathname.startsWith('/auth')
 
-  // Unauthenticated → redirect to /login
-  if (!user && !isAuthPath) {
+  // /pro-scout is the public VCT scouting surface — readable without login.
+  const isPublicPath = request.nextUrl.pathname.startsWith('/pro-scout')
+
+  // Unauthenticated → redirect to /login (unless on auth or public path)
+  if (!user && !isAuthPath && !isPublicPath) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)

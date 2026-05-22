@@ -41,3 +41,6 @@ next-env.d.ts
 
 # local dev logs
 .next-dev.log
+
+# scrape & probe artifacts (large HTML dumps, logs)
+/tmp/
