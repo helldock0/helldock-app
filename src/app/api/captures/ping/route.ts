@@ -15,10 +15,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: 'invalid or revoked token' }, { status: 401 })
   }
 
+  const deprecated = process.env.CAPTURE_TRAY_DEPRECATED === 'true'
+  const overwolfUrl = process.env.OVERWOLF_APP_URL ?? null
+
   return NextResponse.json({
     ok: true,
     label: auth.label,
     team: auth.teamName,
     player: auth.playerName,
+    ...(deprecated && { deprecated: true, ...(overwolfUrl && { overwolf_url: overwolfUrl }) }),
   })
 }
