@@ -45,14 +45,14 @@ export default async function AdminOrgDetailPage({
       .eq('org_id', params.id),
   ])
 
-  // Resolve user emails via auth.users
+  // Resolve user emails via admin_users_by_ids (PostgREST doesn't expose auth schema)
   const memberUserIds = (orgMembers ?? []).map((m) => m.user_id)
-  const { data: users } = await admin
-    .schema('auth')
-    .from('users')
-    .select('id, email')
-    .in('id', memberUserIds.length > 0 ? memberUserIds : ['00000000-0000-0000-0000-000000000000'])
-  const emailById = new Map((users ?? []).map((u) => [u.id, u.email]))
+  const { data: users } = await admin.rpc('admin_users_by_ids', {
+    user_ids: memberUserIds.length > 0 ? memberUserIds : ['00000000-0000-0000-0000-000000000000'],
+  })
+  const emailById = new Map(
+    ((users as { id: string; email: string }[] | null) ?? []).map((u) => [u.id, u.email])
+  )
 
   return (
     <div className="p-8 max-w-5xl">

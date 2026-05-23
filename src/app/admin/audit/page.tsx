@@ -29,14 +29,14 @@ export default async function AdminAuditPage({ searchParams }: { searchParams: S
 
   const rows = data ?? []
 
-  // Resolve user emails
+  // Resolve user emails via admin_users_by_ids RPC (PostgREST blocks auth schema)
   const userIds = Array.from(new Set(rows.map((r) => r.user_id).filter(Boolean) as string[]))
-  const { data: users } = await admin
-    .schema('auth')
-    .from('users')
-    .select('id, email')
-    .in('id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'])
-  const emailById = new Map((users ?? []).map((u) => [u.id, u.email]))
+  const { data: users } = await admin.rpc('admin_users_by_ids', {
+    user_ids: userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'],
+  })
+  const emailById = new Map(
+    ((users as { id: string; email: string }[] | null) ?? []).map((u) => [u.id, u.email])
+  )
 
   // Resolve team names
   const teamIds = Array.from(new Set(rows.map((r) => r.team_id).filter(Boolean) as string[]))

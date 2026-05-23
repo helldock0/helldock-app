@@ -39,15 +39,16 @@ export default async function TeamMembersPage({
     .select('user_id, role, joined_at, player_id, players(display_name)')
     .eq('team_id', teamId)
 
-  // auth.users isn't a foreign table in PostgREST. Hit it separately by user_id.
+  // auth.users isn't exposed through PostgREST. Use the public admin_users_by_ids
+  // SECURITY DEFINER fn which internally queries auth.users.
   const userIds = (tmRows ?? []).map((r) => r.user_id)
-  const { data: users } = await admin
-    .schema('auth')
-    .from('users')
-    .select('id, email')
-    .in('id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'])
+  const { data: users } = await admin.rpc('admin_users_by_ids', {
+    user_ids: userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'],
+  })
 
-  const emailById = new Map((users ?? []).map((u) => [u.id, u.email]))
+  const emailById = new Map(
+    ((users as { id: string; email: string }[] | null) ?? []).map((u) => [u.id, u.email])
+  )
 
   const members: MemberRow[] = (tmRows ?? []).map((r) => ({
     user_id: r.user_id,
@@ -122,9 +123,10 @@ export default async function TeamMembersPage({
               defaultValue="player"
               className="bg-bg border border-line rounded-lg px-3 py-2 text-fg focus:outline-none focus:border-gold transition-colors text-sm"
             >
-              <option value="coach">coach (edit)</option>
-              <option value="player">player (read)</option>
-              <option value="viewer">viewer (read)</option>
+              <option value="coach">coach (edit team data)</option>
+              <option value="analyst">analyst (read everything, no edit)</option>
+              <option value="player">player (read matches + own stats)</option>
+              <option value="viewer">viewer (read matches only)</option>
             </select>
             <button
               type="submit"

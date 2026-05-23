@@ -2,7 +2,7 @@ import { cache } from 'react'
 import { createClient } from './supabase/server'
 
 export type OrgRole = 'org_owner' | 'org_admin' | 'viewer'
-export type TeamRole = 'coach' | 'player' | 'viewer'
+export type TeamRole = 'coach' | 'analyst' | 'player' | 'viewer'
 export type EffectiveRole = TeamRole | OrgRole | 'platform_admin'
 
 export type TeamMembership = {

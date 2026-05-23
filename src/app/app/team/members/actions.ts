@@ -9,7 +9,7 @@ import { generateInviteToken } from '@/lib/invites/token'
 import { sendEmail } from '@/lib/email/resend'
 
 const INVITE_TTL_DAYS = 14
-const ALLOWED_TEAM_ROLES = ['coach', 'player', 'viewer'] as const
+const ALLOWED_TEAM_ROLES = ['coach', 'analyst', 'player', 'viewer'] as const
 
 export async function inviteTeamMemberAction(formData: FormData) {
   const ctx = await getCurrentUserContext()

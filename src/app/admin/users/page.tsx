@@ -13,17 +13,14 @@ type UserRow = {
 
 export default async function AdminUsersPage({ searchParams }: { searchParams: SearchParams }) {
   const admin = createAdminClient()
-  const q = (searchParams.q ?? '').trim().toLowerCase()
+  const q = (searchParams.q ?? '').trim()
 
-  let userQuery = admin
-    .schema('auth')
-    .from('users')
-    .select('id, email, created_at, last_sign_in_at')
-    .order('created_at', { ascending: false })
-    .limit(200)
-  if (q) userQuery = userQuery.ilike('email', `%${q}%`)
-
-  const { data: usersData } = await userQuery
+  // auth.users isn't exposed via PostgREST. Use the public admin_users_list
+  // SECURITY DEFINER fn which supports optional ILIKE search on email.
+  const { data: usersData } = await admin.rpc('admin_users_list', {
+    search: q.length > 0 ? q : null,
+    lim: 200,
+  })
   const users = (usersData ?? []) as UserRow[]
 
   // Resolve memberships for these users

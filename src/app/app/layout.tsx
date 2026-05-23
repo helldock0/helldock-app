@@ -23,6 +23,8 @@ export default async function AuthedLayout({ children }: { children: React.React
   }
 
   const canEdit = role === 'coach' || role === 'org_admin' || role === 'org_owner' || role === 'platform_admin'
+  // canViewRoster = analyst + every higher tier. Players + viewers are excluded.
+  const canViewRoster = role === 'analyst' || canEdit
   const isOrgAdmin = role === 'org_admin' || role === 'org_owner' || role === 'platform_admin'
   const isPlatformAdmin = role === 'platform_admin'
 
@@ -30,7 +32,7 @@ export default async function AuthedLayout({ children }: { children: React.React
     <>
       <AppNav
         currentTeamSlug={currentTeamSlug}
-        capabilities={{ canEdit, isOrgAdmin, isPlatformAdmin }}
+        capabilities={{ canViewRoster, canEdit, isOrgAdmin, isPlatformAdmin }}
       />
       <div className="min-h-[calc(100vh-3.5rem)]">{children}</div>
     </>

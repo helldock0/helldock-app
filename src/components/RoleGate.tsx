@@ -1,16 +1,22 @@
 import { getSelectedTeamSlug } from '@/lib/team-session'
 import { getCurrentUserContext, getTeamRole, type EffectiveRole } from '@/lib/authz'
 
+// player/viewer = level 1 (can only see basic team data + own stats)
+// analyst       = level 2 (read-only across team — adds Roster visibility)
+// coach         = level 3 (full read + write on team data)
+// org_admin/owner = level 4 (coach + member management)
+// platform_admin  = level 5 (cross-tenant superuser)
 const ROLE_HIERARCHY: Record<EffectiveRole, number> = {
   player: 1,
   viewer: 1,
-  coach: 2,
-  org_admin: 3,
-  org_owner: 3,
-  platform_admin: 4,
+  analyst: 2,
+  coach: 3,
+  org_admin: 4,
+  org_owner: 4,
+  platform_admin: 5,
 }
 
-export type MinRole = 'coach' | 'org_admin' | 'platform_admin'
+export type MinRole = 'analyst' | 'coach' | 'org_admin' | 'platform_admin'
 
 /**
  * Server component that conditionally renders children based on the current

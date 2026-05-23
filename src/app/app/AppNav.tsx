@@ -5,8 +5,9 @@ import { usePathname, useRouter } from 'next/navigation'
 import GlobalSearch from './GlobalSearch'
 
 type NavCapabilities = {
-  canEdit: boolean        // coach + above
-  isOrgAdmin: boolean     // org_admin / org_owner / platform_admin
+  canViewRoster: boolean   // analyst + above (analyst, coach, org_admin, platform_admin)
+  canEdit: boolean         // coach + above
+  isOrgAdmin: boolean      // org_admin / org_owner / platform_admin
   isPlatformAdmin: boolean
 }
 
@@ -18,12 +19,15 @@ const LINKS = [
   { href: '/app/analytics', label: 'Analytics', match: (p: string) => p.startsWith('/app/analytics'), minRole: 'player' as const },
   { href: '/app/trends', label: 'Trends', match: (p: string) => p.startsWith('/app/trends'), minRole: 'player' as const },
   { href: '/app/import', label: 'Import', match: (p: string) => p.startsWith('/app/import'), minRole: 'coach' as const },
-  { href: '/app/roster', label: 'Roster', match: (p: string) => p.startsWith('/app/roster'), minRole: 'player' as const },
+  { href: '/app/roster', label: 'Roster', match: (p: string) => p.startsWith('/app/roster'), minRole: 'analyst' as const },
   { href: '/app/team/members', label: 'Members', match: (p: string) => p.startsWith('/app/team/members'), minRole: 'org_admin' as const },
 ] as const
 
-function canSee(linkMinRole: 'player' | 'coach' | 'org_admin', caps: NavCapabilities): boolean {
+type LinkMinRole = 'player' | 'analyst' | 'coach' | 'org_admin'
+
+function canSee(linkMinRole: LinkMinRole, caps: NavCapabilities): boolean {
   if (linkMinRole === 'player') return true
+  if (linkMinRole === 'analyst') return caps.canViewRoster
   if (linkMinRole === 'coach') return caps.canEdit
   return caps.isOrgAdmin
 }
