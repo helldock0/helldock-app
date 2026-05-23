@@ -92,7 +92,7 @@ export default function AppNav({
           <GlobalSearch />
         </div>
 
-        <nav className="flex items-center gap-1">
+        <nav className="flex items-center gap-1 whitespace-nowrap">
           {LINKS.filter((l) => canSee(l.minRole, capabilities)).map((link) => {
             const active = link.match(pathname)
             return (
@@ -112,37 +112,40 @@ export default function AppNav({
               </Link>
             )
           })}
-          {capabilities.canEdit && (
-            <Link
-              href="/app/matches/new"
-              className="ml-2 px-3 py-1.5 bg-gold text-black font-semibold rounded-md text-sm hover:bg-gold-hover transition-colors"
-            >
-              + New
-            </Link>
-          )}
-          {capabilities.isPlatformAdmin && (
-            <Link
-              href="/admin"
-              className={`ml-2 px-3 py-1.5 text-sm rounded-md border transition-colors ${
-                pathname.startsWith('/admin')
-                  ? 'border-gold text-gold'
-                  : 'border-gold/40 text-gold/80 hover:border-gold hover:text-gold'
-              }`}
-            >
-              Admin
-            </Link>
-          )}
-          {capabilities.canEdit && (
-            <Link
-              href="/app/settings"
-              aria-label="Team settings"
-              title="Team settings"
-              className={`ml-1 p-1.5 rounded-md transition-colors ${
-                pathname.startsWith('/app/settings')
-                  ? 'text-gold'
-                  : 'text-muted hover:text-fg'
-              }`}
-            >
+
+          {/* Trailing cluster — visually separated from primary nav */}
+          <div className="flex items-center gap-1 ml-3 pl-3 border-l border-line">
+            {capabilities.canEdit && (
+              <Link
+                href="/app/matches/new"
+                className="px-3 py-1.5 bg-gold text-black font-semibold rounded-md text-sm hover:bg-gold-hover transition-colors"
+              >
+                + New
+              </Link>
+            )}
+            {capabilities.isPlatformAdmin && (
+              <Link
+                href="/admin"
+                className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                  pathname.startsWith('/admin')
+                    ? 'border-gold text-gold'
+                    : 'border-gold/40 text-gold/80 hover:border-gold hover:text-gold'
+                }`}
+              >
+                Admin
+              </Link>
+            )}
+            {capabilities.canEdit && (
+              <Link
+                href="/app/settings"
+                aria-label="Team settings"
+                title="Team settings"
+                className={`p-1.5 rounded-md transition-colors ${
+                  pathname.startsWith('/app/settings')
+                    ? 'text-gold'
+                    : 'text-muted hover:text-fg'
+                }`}
+              >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="18"
@@ -160,6 +163,7 @@ export default function AppNav({
               </svg>
             </Link>
           )}
+          </div>
         </nav>
       </div>
     </header>
