@@ -30,7 +30,9 @@ export async function middleware(request: NextRequest) {
 
   const isAuthPath =
     request.nextUrl.pathname.startsWith('/login') ||
-    request.nextUrl.pathname.startsWith('/auth')
+    request.nextUrl.pathname.startsWith('/auth') ||
+    request.nextUrl.pathname.startsWith('/signup') ||
+    request.nextUrl.pathname.startsWith('/invite')
 
   // /pro-scout is the public VCT scouting surface — readable without login.
   const isPublicPath = request.nextUrl.pathname.startsWith('/pro-scout')
