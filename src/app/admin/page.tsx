@@ -5,14 +5,15 @@ export const dynamic = 'force-dynamic'
 export default async function AdminDashboardPage() {
   const admin = createAdminClient()
 
-  const [orgsRes, pendingRes, usersRes, failuresRes, recentAuditRes, recentSignupsRes] = await Promise.all([
+  const [orgsRes, pendingRes, userCountRes, failuresRes, recentAuditRes, recentSignupsRes] = await Promise.all([
     admin.from('orgs').select('id, suspended_at'),
     admin.from('waitlist').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-    admin.schema('auth').from('users').select('id', { count: 'exact', head: true }),
+    admin.rpc('admin_user_count'),
     admin.from('ingest_failures').select('id', { count: 'exact', head: true }).is('resolved_at', null),
     admin.from('audit_log').select('id, action, table_name, at').order('at', { ascending: false }).limit(5),
     admin.from('waitlist').select('email, org_name, status, created_at').order('created_at', { ascending: false }).limit(5),
   ])
+  const userCount = typeof userCountRes.data === 'number' ? userCountRes.data : 0
 
   const orgs = orgsRes.data ?? []
   const activeOrgs = orgs.filter((o) => !o.suspended_at).length
@@ -26,7 +27,7 @@ export default async function AdminDashboardPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
         <Stat label="Orgs · active" value={`${activeOrgs}`} />
         <Stat label="Orgs · suspended" value={`${suspendedOrgs}`} tone={suspendedOrgs > 0 ? 'warn' : 'default'} />
-        <Stat label="Users" value={`${usersRes.count ?? 0}`} />
+        <Stat label="Users" value={`${userCount}`} />
         <Stat label="Pending waitlist" value={`${pendingRes.count ?? 0}`} tone={(pendingRes.count ?? 0) > 0 ? 'warn' : 'default'} />
       </div>
 
