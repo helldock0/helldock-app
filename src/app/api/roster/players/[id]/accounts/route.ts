@@ -1,5 +1,6 @@
-import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { requireTeamScope } from '@/lib/route-guard'
+import { logMutation } from '@/lib/audit'
 
 type AddAccountPayload = {
   riot_name: string
@@ -8,9 +9,17 @@ type AddAccountPayload = {
 }
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const scope = await requireTeamScope()
+  if (scope instanceof NextResponse) return scope
+
+  // Verify the player belongs to this team
+  const { data: player } = await scope.supabase
+    .from('players')
+    .select('id')
+    .eq('id', params.id)
+    .eq('team_id', scope.teamId)
+    .single()
+  if (!player) return NextResponse.json({ error: 'not found' }, { status: 404 })
 
   const body = (await req.json()) as AddAccountPayload
   const { riot_name, riot_tag } = body
@@ -18,18 +27,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: 'riot_name and riot_tag required' }, { status: 400 })
   }
 
-  const { data: existing } = await supabase
+  const { data: existing } = await scope.supabase
     .from('player_accounts')
-    .select('id, player_id, players(display_name)')
+    .select('id, player_id')
     .eq('riot_name', riot_name)
     .eq('riot_tag', riot_tag)
     .maybeSingle()
 
   if (existing && existing.player_id !== params.id) {
-    const owner = (existing as { players?: { display_name?: string } | null }).players
-      ?.display_name
+    // Don't leak the other player's display_name — could be on another team
     return NextResponse.json(
-      { error: `Already linked to ${owner ?? 'another player'}` },
+      { error: 'Already linked to another player' },
       { status: 409 }
     )
   }
@@ -38,7 +46,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ id: existing.id, already: true })
   }
 
-  const { data: created, error } = await supabase
+  const { data: created, error } = await scope.supabase
     .from('player_accounts')
     .insert({
       player_id: params.id,
@@ -53,5 +61,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (error || !created) {
     return NextResponse.json({ error: error?.message ?? 'Insert failed' }, { status: 400 })
   }
+
+  logMutation({
+    userId: scope.userId,
+    teamId: scope.teamId,
+    action: 'insert',
+    table: 'player_accounts',
+    rowId: created.id,
+    changes: { player_id: params.id, riot_name, riot_tag },
+  })
+
   return NextResponse.json({ id: created.id })
 }

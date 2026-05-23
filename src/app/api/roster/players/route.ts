@@ -1,8 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { requireTeamScope } from '@/lib/route-guard'
+import { logMutation } from '@/lib/audit'
 
 type CreatePayload = {
-  team_id: string
+  team_id?: string
   display_name: string
   riot_name: string
   riot_tag: string
@@ -12,20 +13,24 @@ type CreatePayload = {
 }
 
 export async function POST(req: Request) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const scope = await requireTeamScope()
+  if (scope instanceof NextResponse) return scope
 
   const body = (await req.json()) as CreatePayload
-  const { team_id, display_name, riot_name, riot_tag } = body
-  if (!team_id || !display_name || !riot_name || !riot_tag) {
+  const { display_name, riot_name, riot_tag } = body
+  if (!display_name || !riot_name || !riot_tag) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
-  const { data: player, error: pErr } = await supabase
+  // If the client passed a team_id, it must match the session's selected team
+  if (body.team_id && body.team_id !== scope.teamId) {
+    return NextResponse.json({ error: 'team_id mismatch' }, { status: 400 })
+  }
+
+  const { data: player, error: pErr } = await scope.supabase
     .from('players')
     .insert({
-      team_id,
+      team_id: scope.teamId,
       display_name,
       riot_name,
       riot_tag,
@@ -39,7 +44,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: pErr?.message ?? 'Create failed' }, { status: 400 })
   }
 
-  const { error: aErr } = await supabase.from('player_accounts').insert({
+  const { error: aErr } = await scope.supabase.from('player_accounts').insert({
     player_id: player.id,
     riot_name,
     riot_tag,
@@ -52,6 +57,15 @@ export async function POST(req: Request) {
       { status: 500 }
     )
   }
+
+  logMutation({
+    userId: scope.userId,
+    teamId: scope.teamId,
+    action: 'insert',
+    table: 'players',
+    rowId: player.id,
+    changes: { display_name, riot_name, riot_tag },
+  })
 
   return NextResponse.json({ id: player.id })
 }

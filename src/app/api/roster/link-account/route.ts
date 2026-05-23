@@ -1,5 +1,6 @@
-import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { requireTeamScope } from '@/lib/route-guard'
+import { logMutation } from '@/lib/audit'
 
 type LinkPayload = {
   match_player_id: string
@@ -17,9 +18,8 @@ type LinkPayload = {
  * Riot ID via the /roster Players tab → "Add alt account".
  */
 export async function POST(req: Request) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const scope = await requireTeamScope()
+  if (scope instanceof NextResponse) return scope
 
   const { match_player_id, target_player_id } = (await req.json()) as LinkPayload
   if (!match_player_id || !target_player_id) {
@@ -29,16 +29,34 @@ export async function POST(req: Request) {
     )
   }
 
-  const { data: target } = await supabase
+  // Verify target player belongs to this team
+  const { data: target } = await scope.supabase
     .from('players')
     .select('id, display_name')
     .eq('id', target_player_id)
+    .eq('team_id', scope.teamId)
     .single()
   if (!target) {
     return NextResponse.json({ error: 'target player not found' }, { status: 404 })
   }
 
-  const { data: updated, error } = await supabase
+  // Verify match_player belongs to a match owned by this team
+  const { data: mp } = await scope.supabase
+    .from('match_players')
+    .select('match_id')
+    .eq('id', match_player_id)
+    .single()
+  if (!mp) return NextResponse.json({ error: 'match_player not found' }, { status: 404 })
+
+  const { data: match } = await scope.supabase
+    .from('matches')
+    .select('id')
+    .eq('id', mp.match_id)
+    .eq('team_id', scope.teamId)
+    .single()
+  if (!match) return NextResponse.json({ error: 'match_player not found' }, { status: 404 })
+
+  const { data: updated, error } = await scope.supabase
     .from('match_players')
     .update({ player_id: target_player_id })
     .eq('id', match_player_id)
@@ -51,6 +69,15 @@ export async function POST(req: Request) {
       { status: 400 }
     )
   }
+
+  logMutation({
+    userId: scope.userId,
+    teamId: scope.teamId,
+    action: 'update',
+    table: 'match_players',
+    rowId: match_player_id,
+    changes: { player_id: target_player_id },
+  })
 
   return NextResponse.json({
     linked: 1,

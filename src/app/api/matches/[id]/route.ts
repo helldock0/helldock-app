@@ -1,27 +1,42 @@
-import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { requireTeamScope, stripFields } from '@/lib/route-guard'
+import { logMutation } from '@/lib/audit'
+
+const FORBIDDEN_FIELDS = ['id', 'team_id', 'created_at', 'henrik_id', 'match_id_helldock'] as const
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const scope = await requireTeamScope()
+  if (scope instanceof NextResponse) return scope
 
-  const updates = await req.json()
+  const body = (await req.json()) as Record<string, unknown>
+  const updates = stripFields(body, FORBIDDEN_FIELDS)
 
   // Auto-derive result if scores are being updated
   if (updates.our_score !== undefined && updates.opp_score !== undefined) {
-    updates.result = updates.our_score > updates.opp_score ? 'W'
-      : updates.our_score < updates.opp_score ? 'L'
-      : null
+    const ours = updates.our_score as number
+    const opp = updates.opp_score as number
+    updates.result = ours > opp ? 'W' : ours < opp ? 'L' : null
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await scope.supabase
     .from('matches')
     .update(updates)
     .eq('id', params.id)
+    .eq('team_id', scope.teamId)
     .select()
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (!data) return NextResponse.json({ error: 'not found' }, { status: 404 })
+
+  logMutation({
+    userId: scope.userId,
+    teamId: scope.teamId,
+    action: 'update',
+    table: 'matches',
+    rowId: params.id,
+    changes: updates,
+  })
+
   return NextResponse.json(data)
 }

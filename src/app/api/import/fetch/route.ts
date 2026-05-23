@@ -1,7 +1,7 @@
-import { createClient } from '@/lib/supabase/server'
 import { TEAM_CONFIGS } from '@/lib/teams'
 import { fetchMatchesV4 } from '@/lib/henrik/client'
 import { transformMatchToRows } from '@/lib/henrik/transformers'
+import { requireTeamScope } from '@/lib/route-guard'
 import { NextResponse } from 'next/server'
 
 const MIN_ROUNDS = 12
@@ -25,11 +25,14 @@ export type MatchPreview = {
 }
 
 export async function POST(req: Request) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const scope = await requireTeamScope()
+  if (scope instanceof NextResponse) return scope
 
   const { teamSlug } = await req.json()
+  if (teamSlug !== scope.teamSlug) {
+    return NextResponse.json({ error: 'team mismatch' }, { status: 400 })
+  }
+
   const teamConfig = TEAM_CONFIGS[teamSlug]
   if (!teamConfig) return NextResponse.json({ error: 'Unknown team' }, { status: 400 })
 
@@ -43,26 +46,19 @@ export async function POST(req: Request) {
       .flatMap((s) => Object.keys(TEAM_CONFIGS[s].roster))
   )
 
-  // Get team DB record first (lookup once)
-  const { data: teamRow } = await supabase
-    .from('teams')
-    .select('id')
-    .eq('slug', teamSlug)
-    .single()
-  const teamId = teamRow?.id
-  if (!teamId) return NextResponse.json({ error: 'Team not found in DB' }, { status: 404 })
+  const teamId = scope.teamId
 
   // Last match date + henrik_ids already in DB FOR THIS TEAM (scoped per team so
   // the same Henrik match can be imported once per team — e.g. internal scrims).
   const [{ data: lastMatch }, { data: existingMatches }] = await Promise.all([
-    supabase
+    scope.supabase
       .from('matches')
       .select('match_date')
       .eq('team_id', teamId)
       .is('deleted_at', null)
       .order('match_date', { ascending: false })
       .limit(1),
-    supabase
+    scope.supabase
       .from('matches')
       .select('henrik_id')
       .eq('team_id', teamId)

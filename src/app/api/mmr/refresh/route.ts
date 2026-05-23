@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
 import { fetchMmr } from '@/lib/henrik/client'
+import { requireTeamScope } from '@/lib/route-guard'
 import { NextResponse } from 'next/server'
 
 const API_KEY = process.env.HENRIK_API_KEY ?? process.env.HENRIKDEV_API_KEY ?? ''
@@ -12,10 +12,13 @@ type RefreshRequest = {
 
 type RefreshError = { riot_id: string; error: string }
 
+// NOTE: player_mmr_cache is a shared cache keyed by puuid — same puuid maps to
+// the same MMR regardless of which team queries it. We require a team scope to
+// prevent unauth abuse of the Henrik rate quota, but don't restrict which
+// riot_ids can be refreshed.
 export async function POST(req: Request) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const scope = await requireTeamScope()
+  if (scope instanceof NextResponse) return scope
 
   const body: RefreshRequest = await req.json()
   const riotIds = Array.from(new Set((body.riotIds ?? []).filter(Boolean)))
@@ -65,7 +68,7 @@ export async function POST(req: Request) {
           fetched_at: new Date().toISOString(),
         }
 
-        const { error: upsertErr } = await supabase
+        const { error: upsertErr } = await scope.supabase
           .from('player_mmr_cache')
           .upsert(row, { onConflict: 'puuid' })
 

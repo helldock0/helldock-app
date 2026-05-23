@@ -1,19 +1,22 @@
-import { createClient } from '@/lib/supabase/server'
 import { ingestMatch } from '@/lib/henrik/ingest'
 import { baseUrlFromRequest } from '@/lib/discord'
+import { requireTeamScope } from '@/lib/route-guard'
+import { logMutation } from '@/lib/audit'
 import { NextResponse } from 'next/server'
 import type { MatchPreview } from '../fetch/route'
 
 export async function POST(req: Request) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const scope = await requireTeamScope()
+  if (scope instanceof NextResponse) return scope
 
   const { teamSlug, selectedMatches }: { teamSlug: string; selectedMatches: MatchPreview[] } =
     await req.json()
 
   if (!teamSlug || !Array.isArray(selectedMatches)) {
     return NextResponse.json({ error: 'invalid body' }, { status: 400 })
+  }
+  if (teamSlug !== scope.teamSlug) {
+    return NextResponse.json({ error: 'team mismatch' }, { status: 400 })
   }
 
   // Sort oldest-first so helldock IDs are assigned chronologically (M001, M002, ...)
@@ -33,12 +36,20 @@ export async function POST(req: Request) {
       teamSlug,
       rawMatch: preview.raw_match,
       source: 'manual_import',
-      supabase,
+      supabase: scope.supabase,
       baseUrl,
     })
 
     if (result.status === 'ingested') {
       results.push({ henrik_id: preview.henrik_id, match_id: result.helldockId, status: 'saved' })
+      logMutation({
+        userId: scope.userId,
+        teamId: scope.teamId,
+        action: 'insert',
+        table: 'matches',
+        rowId: result.helldockId,
+        changes: { henrik_id: preview.henrik_id, source: 'manual_import' },
+      })
     } else if (result.status === 'duplicate') {
       results.push({ henrik_id: preview.henrik_id, match_id: result.helldockId, status: 'duplicate' })
     } else {
