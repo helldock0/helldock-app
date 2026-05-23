@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       // Per-login picker: clear any previous team selection so the user must
       // choose again at the start of every session.
       cookieStore.delete(TEAM_COOKIE)
-      return NextResponse.redirect(`${origin}/select-team`)
+      return NextResponse.redirect(`${origin}/app/select-team`)
     }
   }
 

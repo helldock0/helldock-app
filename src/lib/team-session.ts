@@ -41,7 +41,7 @@ export async function requireSelectedTeam(): Promise<{
   teamName: string
 }> {
   const slug = getSelectedTeamSlug()
-  if (!slug) redirect('/select-team')
+  if (!slug) redirect('/app/select-team')
 
   const ctx = await getCurrentUserContext()
   if (!ctx) redirect('/login')
@@ -66,5 +66,5 @@ export async function requireSelectedTeam(): Promise<{
   }
 
   // Cookie names a team the user can't access — boot to picker
-  redirect('/select-team')
+  redirect('/app/select-team')
 }

@@ -116,5 +116,5 @@ export async function createTeamAction(formData: FormData) {
     }
   }
 
-  redirect('/select-team')
+  redirect('/app/select-team')
 }

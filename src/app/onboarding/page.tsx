@@ -24,7 +24,7 @@ export default async function OnboardingPage({
     return <Step2CreateTeam orgName={ownedOrg.orgName} errorCode={searchParams.error} />
   }
   // Already has a team — they're done
-  redirect('/select-team')
+  redirect('/app/select-team')
 }
 
 function Step1CreateOrg({ errorCode }: { errorCode?: string }) {

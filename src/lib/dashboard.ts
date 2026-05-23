@@ -306,7 +306,7 @@ export function computeWatchList(
         title: `${b.name} · ACS −${Math.round(dropPct)}%`,
         detail: `7d ${Math.round(recentAvg)} vs 30d ${Math.round(baseAvg)} · ${b.recentN} recent games`,
         severity: sev,
-        href: '/analytics?tab=players',
+        href: '/app/analytics?tab=players',
       })
     }
   }
@@ -332,7 +332,7 @@ export function computeWatchList(
       title: `Pistol DEF · ${streak}-loss streak`,
       detail: 'losing every defensive pistol — practice setups + first-contact spots',
       severity: streak >= 5 ? 'alert' : 'warn',
-      href: '/analytics?tab=rounds',
+      href: '/app/analytics?tab=rounds',
     })
   }
 
@@ -359,7 +359,7 @@ export function computeWatchList(
         title: `${mp} · 0 wins in last ${bucket.losses}`,
         detail: 'cold map — ban candidate or schedule focused VOD review',
         severity: bucket.losses >= 4 ? 'alert' : 'warn',
-        href: '/analytics?tab=maps',
+        href: '/app/analytics?tab=maps',
       })
     }
   }
@@ -390,7 +390,7 @@ export function computeWatchList(
       title: `${worstAfk.name} · AFK ${worstAfk.rounds} rds`,
       detail: 'one or more matches in last 7 days flagged AFK by Riot',
       severity: (worstAfk.rounds ?? 0) >= 5 ? 'alert' : 'warn',
-      href: '/analytics?tab=players',
+      href: '/app/analytics?tab=players',
     })
   }
   if (worstFf) {
@@ -399,7 +399,7 @@ export function computeWatchList(
       title: `${worstFf.name} · FF ${worstFf.damage} dmg`,
       detail: 'friendly-fire damage above 100 in last 7d',
       severity: (worstFf.damage ?? 0) >= 300 ? 'alert' : 'warn',
-      href: '/analytics?tab=players',
+      href: '/app/analytics?tab=players',
     })
   }
 

@@ -52,7 +52,7 @@ export async function acceptInviteAction(formData: FormData) {
     .maybeSingle()
 
   if (!invite) redirect(`/invite/${token}?error=notfound`)
-  if (invite.accepted_at) redirect('/select-team')
+  if (invite.accepted_at) redirect('/app/select-team')
   if (new Date(invite.expires_at) < new Date()) {
     redirect(`/invite/${token}?error=expired`)
   }
@@ -91,5 +91,5 @@ export async function acceptInviteAction(formData: FormData) {
   if (invite.org_id === null) {
     redirect('/onboarding')
   }
-  redirect('/select-team')
+  redirect('/app/select-team')
 }

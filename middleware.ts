@@ -28,34 +28,36 @@ export async function middleware(request: NextRequest) {
   // Refresh session — MUST be called before any auth checks
   const { data: { user } } = await supabase.auth.getUser()
 
+  const path = request.nextUrl.pathname
+
   const isAuthPath =
-    request.nextUrl.pathname.startsWith('/login') ||
-    request.nextUrl.pathname.startsWith('/auth') ||
-    request.nextUrl.pathname.startsWith('/signup') ||
-    request.nextUrl.pathname.startsWith('/invite')
+    path.startsWith('/login') ||
+    path.startsWith('/auth') ||
+    path.startsWith('/signup') ||
+    path.startsWith('/invite') ||
+    path.startsWith('/onboarding')
 
-  // /pro-scout is the public VCT scouting surface — readable without login.
-  const isPublicPath = request.nextUrl.pathname.startsWith('/pro-scout')
+  // / and /pro-scout are public marketing surfaces — anyone reads.
+  const isPublicMarketing = path === '/' || path.startsWith('/pro-scout')
 
-  // Unauthenticated visitors hitting the bare host land on the public
-  // pro-scout module (the TEC-facing surface), not the private login wall.
-  if (!user && request.nextUrl.pathname === '/') {
+  // Authenticated visitors hitting the bare `/` get sent to their app dashboard.
+  if (user && path === '/') {
     const url = request.nextUrl.clone()
-    url.pathname = '/pro-scout'
+    url.pathname = '/app'
     return NextResponse.redirect(url)
   }
 
-  // Unauthenticated → redirect to /login (unless on auth or public path)
-  if (!user && !isAuthPath && !isPublicPath) {
+  // Unauth → redirect to login (except auth + public marketing paths).
+  if (!user && !isAuthPath && !isPublicMarketing) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  // Authenticated + on /login → redirect home
-  if (user && request.nextUrl.pathname.startsWith('/login')) {
+  // Authed + on /login → bounce to /app
+  if (user && path.startsWith('/login')) {
     const url = request.nextUrl.clone()
-    url.pathname = '/'
+    url.pathname = '/app'
     return NextResponse.redirect(url)
   }
 
