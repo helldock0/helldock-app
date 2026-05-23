@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { requireSelectedTeam } from '@/lib/team-session'
+import { requireTeamWriteScope } from '@/lib/route-guard'
+import { logMutation } from '@/lib/audit'
 
 const ALLOWED_STATUSES = new Set(['scheduled', 'cancelled', 'completed'])
 const PATCH_FIELDS = [
@@ -17,7 +17,9 @@ export async function PATCH(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const { teamId } = await requireSelectedTeam()
+  const scope = await requireTeamWriteScope()
+  if (scope instanceof NextResponse) return scope
+
   const body = await req.json()
   if (body.status && !ALLOWED_STATUSES.has(body.status)) {
     return NextResponse.json({ error: 'invalid status' }, { status: 400 })
@@ -31,16 +33,25 @@ export async function PATCH(
     return NextResponse.json({ error: 'no fields to update' }, { status: 400 })
   }
 
-  const supabase = createClient()
-  const { data, error } = await supabase
+  const { data, error } = await scope.supabase
     .from('scrim_schedule')
     .update(updates)
     .eq('id', params.id)
-    .eq('team_id', teamId)
+    .eq('team_id', scope.teamId)
     .select()
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'not found' }, { status: 404 })
+
+  logMutation({
+    userId: scope.userId,
+    teamId: scope.teamId,
+    action: 'update',
+    table: 'scrim_schedule',
+    rowId: params.id,
+    changes: updates,
+  })
+
   return NextResponse.json(data)
 }
 
@@ -48,13 +59,23 @@ export async function DELETE(
   _req: Request,
   { params }: { params: { id: string } }
 ) {
-  const { teamId } = await requireSelectedTeam()
-  const supabase = createClient()
-  const { error } = await supabase
+  const scope = await requireTeamWriteScope()
+  if (scope instanceof NextResponse) return scope
+
+  const { error } = await scope.supabase
     .from('scrim_schedule')
     .delete()
     .eq('id', params.id)
-    .eq('team_id', teamId)
+    .eq('team_id', scope.teamId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  logMutation({
+    userId: scope.userId,
+    teamId: scope.teamId,
+    action: 'delete',
+    table: 'scrim_schedule',
+    rowId: params.id,
+  })
+
   return NextResponse.json({ ok: true })
 }

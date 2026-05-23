@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { requireSelectedTeam } from '@/lib/team-session'
+import { requireTeamWriteScope } from '@/lib/route-guard'
+import { logMutation } from '@/lib/audit'
 
 const VALID_WEBHOOK_PREFIXES = [
   'https://discord.com/api/webhooks/',
@@ -14,7 +14,9 @@ function isValidDiscordWebhook(url: string): boolean {
 }
 
 export async function PATCH(req: Request) {
-  const { teamId } = await requireSelectedTeam()
+  const scope = await requireTeamWriteScope()
+  if (scope instanceof NextResponse) return scope
+
   const body = (await req.json().catch(() => null)) as { url?: string | null } | null
   if (!body || (body.url !== null && typeof body.url !== 'string')) {
     return NextResponse.json({ error: 'invalid body' }, { status: 400 })
@@ -35,12 +37,20 @@ export async function PATCH(req: Request) {
     }
   }
 
-  const supabase = createClient()
-  const { error } = await supabase
+  const { error } = await scope.supabase
     .from('teams')
     .update({ discord_webhook_url: webhookUrl })
-    .eq('id', teamId)
+    .eq('id', scope.teamId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  logMutation({
+    userId: scope.userId,
+    teamId: scope.teamId,
+    action: 'update',
+    table: 'teams',
+    rowId: scope.teamId,
+    changes: { discord_webhook_url: webhookUrl ? '(set)' : null },
+  })
 
   return NextResponse.json({ ok: true, discord_webhook_url: webhookUrl })
 }

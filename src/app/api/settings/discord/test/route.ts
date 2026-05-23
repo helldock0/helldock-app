@@ -1,30 +1,29 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { requireSelectedTeam } from '@/lib/team-session'
+import { requireTeamWriteScope } from '@/lib/route-guard'
 import { postMatchToDiscord, baseUrlFromRequest } from '@/lib/discord'
 
 export async function POST(req: Request) {
-  const { teamId, teamName } = await requireSelectedTeam()
-  const supabase = createClient()
+  const scope = await requireTeamWriteScope()
+  if (scope instanceof NextResponse) return scope
 
-  const { data: team } = await supabase
+  const { data: teamRow } = await scope.supabase
     .from('teams')
-    .select('discord_webhook_url')
-    .eq('id', teamId)
+    .select('discord_webhook_url, name')
+    .eq('id', scope.teamId)
     .single()
 
-  if (!team?.discord_webhook_url) {
+  if (!teamRow?.discord_webhook_url) {
     return NextResponse.json(
       { error: 'No webhook URL set. Save one first.' },
       { status: 400 }
     )
   }
 
-  const result = await postMatchToDiscord(team.discord_webhook_url, {
+  const result = await postMatchToDiscord(teamRow.discord_webhook_url, {
     matchIdHelldock: 'TEST',
     matchUrl: `${baseUrlFromRequest(req).replace(/\/+$/, '')}/settings`,
     mapName: 'Lotus',
-    teamName,
+    teamName: teamRow.name ?? scope.teamSlug,
     opponentName: 'Webhook Test',
     ourScore: 13,
     oppScore: 11,

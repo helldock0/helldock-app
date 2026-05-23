@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
-import { requireTeamScope, stripFields } from '@/lib/route-guard'
+import { requireTeamWriteScope, stripFields } from '@/lib/route-guard'
 import { logMutation } from '@/lib/audit'
 
 const FORBIDDEN_FIELDS = ['id', 'match_id', 'player_id', 'created_at'] as const
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const scope = await requireTeamScope()
+  const scope = await requireTeamWriteScope()
   if (scope instanceof NextResponse) return scope
 
   // Verify the match_player belongs to a match owned by this team

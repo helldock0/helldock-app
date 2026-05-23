@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireTeamScope } from '@/lib/route-guard'
+import { requireTeamWriteScope } from '@/lib/route-guard'
 import { logMutation } from '@/lib/audit'
 
 type LinkPayload = {
@@ -18,7 +18,7 @@ type LinkPayload = {
  * Riot ID via the /roster Players tab → "Add alt account".
  */
 export async function POST(req: Request) {
-  const scope = await requireTeamScope()
+  const scope = await requireTeamWriteScope()
   if (scope instanceof NextResponse) return scope
 
   const { match_player_id, target_player_id } = (await req.json()) as LinkPayload

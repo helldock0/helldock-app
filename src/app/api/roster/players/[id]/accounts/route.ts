@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireTeamScope } from '@/lib/route-guard'
+import { requireTeamWriteScope } from '@/lib/route-guard'
 import { logMutation } from '@/lib/audit'
 
 type AddAccountPayload = {
@@ -9,7 +9,7 @@ type AddAccountPayload = {
 }
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const scope = await requireTeamScope()
+  const scope = await requireTeamWriteScope()
   if (scope instanceof NextResponse) return scope
 
   // Verify the player belongs to this team

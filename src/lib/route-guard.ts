@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from './supabase/server'
 import { getSelectedTeamSlug } from './team-session'
-import { getCurrentUserContext } from './authz'
+import { getCurrentUserContext, canWriteTeam } from './authz'
 
 export type TeamScope = {
   teamId: string
@@ -11,10 +11,11 @@ export type TeamScope = {
 }
 
 /**
- * Resolve { teamId, userId, supabase } for an authed mutation route. Returns
- * a NextResponse (401/400/404) when the request lacks a session, lacks a team
- * cookie, or names a team the user isn't a member of. Platform admins can
- * scope to any team.
+ * Resolve { teamId, userId, supabase } for an authed read or mutation route.
+ * Returns a NextResponse (401/400/404) when the request lacks a session,
+ * lacks a team cookie, or names a team the user isn't a member of. Platform
+ * admins can scope to any team. Does NOT check write role — use
+ * `requireTeamWriteScope` for mutations.
  */
 export async function requireTeamScope(): Promise<TeamScope | NextResponse> {
   const ctx = await getCurrentUserContext()
@@ -25,7 +26,6 @@ export async function requireTeamScope(): Promise<TeamScope | NextResponse> {
 
   const supabase = createClient()
 
-  // Look up the team in the user's memberships
   for (const org of ctx.memberships) {
     const team = org.teams.find((t) => t.teamSlug === slug)
     if (team) {
@@ -33,7 +33,6 @@ export async function requireTeamScope(): Promise<TeamScope | NextResponse> {
     }
   }
 
-  // Platform admin can select any team
   if (ctx.isPlatformAdmin) {
     const { data: team } = await supabase
       .from('teams')
@@ -46,6 +45,26 @@ export async function requireTeamScope(): Promise<TeamScope | NextResponse> {
   }
 
   return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+}
+
+/**
+ * Like `requireTeamScope` but additionally enforces write privilege (coach,
+ * org_admin, org_owner, or platform_admin). Players/viewers get 403.
+ */
+export async function requireTeamWriteScope(): Promise<TeamScope | NextResponse> {
+  const scope = await requireTeamScope()
+  if (scope instanceof NextResponse) return scope
+
+  const ctx = await getCurrentUserContext()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  if (!canWriteTeam(ctx, scope.teamId)) {
+    return NextResponse.json(
+      { error: 'Forbidden — coach role or higher required' },
+      { status: 403 }
+    )
+  }
+  return scope
 }
 
 /** Drop forbidden keys before passing a body into a Supabase update. */

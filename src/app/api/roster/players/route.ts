@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireTeamScope } from '@/lib/route-guard'
+import { requireTeamWriteScope } from '@/lib/route-guard'
 import { logMutation } from '@/lib/audit'
 
 type CreatePayload = {
@@ -13,7 +13,7 @@ type CreatePayload = {
 }
 
 export async function POST(req: Request) {
-  const scope = await requireTeamScope()
+  const scope = await requireTeamWriteScope()
   if (scope instanceof NextResponse) return scope
 
   const body = (await req.json()) as CreatePayload

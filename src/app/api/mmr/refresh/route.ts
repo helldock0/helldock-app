@@ -1,5 +1,5 @@
 import { fetchMmr } from '@/lib/henrik/client'
-import { requireTeamScope } from '@/lib/route-guard'
+import { requireTeamWriteScope } from '@/lib/route-guard'
 import { NextResponse } from 'next/server'
 
 const API_KEY = process.env.HENRIK_API_KEY ?? process.env.HENRIKDEV_API_KEY ?? ''
@@ -17,7 +17,7 @@ type RefreshError = { riot_id: string; error: string }
 // prevent unauth abuse of the Henrik rate quota, but don't restrict which
 // riot_ids can be refreshed.
 export async function POST(req: Request) {
-  const scope = await requireTeamScope()
+  const scope = await requireTeamWriteScope()
   if (scope instanceof NextResponse) return scope
 
   const body: RefreshRequest = await req.json()

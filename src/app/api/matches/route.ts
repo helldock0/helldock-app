@@ -1,5 +1,6 @@
-import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { requireTeamWriteScope } from '@/lib/route-guard'
+import { logMutation } from '@/lib/audit'
 import { notifyDiscordForMatch, baseUrlFromRequest } from '@/lib/discord'
 
 type OurPlayerInput = { player_id: string | null; agent: string | null }
@@ -28,22 +29,18 @@ function nextMatchIdHelldock(current: string | null): string {
 const PLACEHOLDER_ROUNDS = 24
 
 export async function POST(req: Request) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const scope = await requireTeamWriteScope()
+  if (scope instanceof NextResponse) return scope
 
   const body = (await req.json()) as NewMatchPayload
 
-  // Resolve team
-  const { data: teamRow } = await supabase
-    .from('teams')
-    .select('id')
-    .eq('slug', body.team_slug)
-    .single()
-  if (!teamRow) return NextResponse.json({ error: 'Team not found' }, { status: 400 })
+  // Body team_slug must match the session's selected team
+  if (body.team_slug && body.team_slug !== scope.teamSlug) {
+    return NextResponse.json({ error: 'team_slug mismatch' }, { status: 400 })
+  }
 
   // Generate next match ID
-  const { data: maxRow } = await supabase
+  const { data: maxRow } = await scope.supabase
     .from('matches')
     .select('match_id_helldock')
     .order('match_id_helldock', { ascending: false })
@@ -51,10 +48,10 @@ export async function POST(req: Request) {
   const newMatchId = nextMatchIdHelldock(maxRow?.[0]?.match_id_helldock ?? null)
 
   // Session # for this team on this date
-  const { count: sameDayCount } = await supabase
+  const { count: sameDayCount } = await scope.supabase
     .from('matches')
     .select('*', { count: 'exact', head: true })
-    .eq('team_id', teamRow.id)
+    .eq('team_id', scope.teamId)
     .eq('match_date', body.match_date)
   const sessionNum = (sameDayCount ?? 0) + 1
 
@@ -66,12 +63,11 @@ export async function POST(req: Request) {
   const ourAgents = body.our_players.map((p) => p.agent).filter((a): a is string => !!a)
   const oppAgentsClean = body.opp_agents.filter((a): a is string => !!a && a.length > 0)
 
-  // Insert match
-  const { data: insertedMatch, error: matchError } = await supabase
+  const { data: insertedMatch, error: matchError } = await scope.supabase
     .from('matches')
     .insert({
       match_id_helldock: newMatchId,
-      team_id: teamRow.id,
+      team_id: scope.teamId,
       henrik_id: null,
       is_manual_entry: true,
       match_date: body.match_date,
@@ -107,7 +103,7 @@ export async function POST(req: Request) {
     match_id: matchUUID,
     round_num: i + 1,
   }))
-  const { error: roundsError } = await supabase.from('rounds').insert(roundRows)
+  const { error: roundsError } = await scope.supabase.from('rounds').insert(roundRows)
   if (roundsError) {
     return NextResponse.json({ error: `Rounds insert failed: ${roundsError.message}` }, { status: 500 })
   }
@@ -118,7 +114,7 @@ export async function POST(req: Request) {
     player_id: p.player_id,
     agent: p.agent,
   }))
-  const { error: mpError } = await supabase.from('match_players').insert(matchPlayerRows)
+  const { error: mpError } = await scope.supabase.from('match_players').insert(matchPlayerRows)
   if (mpError) {
     return NextResponse.json({ error: `match_players insert failed: ${mpError.message}` }, { status: 500 })
   }
@@ -129,13 +125,22 @@ export async function POST(req: Request) {
     opp_player_name: `Player${i + 1}`,
     agent: agent || null,
   }))
-  const { error: oppError } = await supabase.from('opp_players').insert(oppPlayerRows)
+  const { error: oppError } = await scope.supabase.from('opp_players').insert(oppPlayerRows)
   if (oppError) {
     return NextResponse.json({ error: `opp_players insert failed: ${oppError.message}` }, { status: 500 })
   }
 
   // Fire-and-forget Discord notification — never throws, never blocks the response.
-  await notifyDiscordForMatch(supabase, teamRow.id, matchUUID, baseUrlFromRequest(req))
+  await notifyDiscordForMatch(scope.supabase, scope.teamId, matchUUID, baseUrlFromRequest(req))
+
+  logMutation({
+    userId: scope.userId,
+    teamId: scope.teamId,
+    action: 'insert',
+    table: 'matches',
+    rowId: matchUUID,
+    changes: { match_id_helldock: insertedMatch.match_id_helldock, source: 'manual_entry' },
+  })
 
   return NextResponse.json({
     id: matchUUID,

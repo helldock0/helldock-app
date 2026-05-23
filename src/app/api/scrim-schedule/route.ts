@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { requireSelectedTeam } from '@/lib/team-session'
+import { requireTeamWriteScope } from '@/lib/route-guard'
+import { logMutation } from '@/lib/audit'
 
 const ALLOWED_STATUSES = new Set(['scheduled', 'cancelled', 'completed'])
 
 export async function POST(req: Request) {
-  const { teamId } = await requireSelectedTeam()
+  const scope = await requireTeamWriteScope()
+  if (scope instanceof NextResponse) return scope
+
   const body = await req.json()
 
   if (!body?.scheduled_at || typeof body.scheduled_at !== 'string') {
@@ -18,11 +20,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'invalid status' }, { status: 400 })
   }
 
-  const supabase = createClient()
-  const { data, error } = await supabase
+  const { data, error } = await scope.supabase
     .from('scrim_schedule')
     .insert({
-      team_id: teamId,
+      team_id: scope.teamId,
       scheduled_at: body.scheduled_at,
       opponent_name: body.opponent_name ?? null,
       map_planned: body.map_planned ?? null,
@@ -34,5 +35,15 @@ export async function POST(req: Request) {
     .select()
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  logMutation({
+    userId: scope.userId,
+    teamId: scope.teamId,
+    action: 'insert',
+    table: 'scrim_schedule',
+    rowId: data.id,
+    changes: { scheduled_at: data.scheduled_at, opponent: data.opponent_name },
+  })
+
   return NextResponse.json(data)
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireTeamScope, stripFields } from '@/lib/route-guard'
+import { requireTeamWriteScope, stripFields } from '@/lib/route-guard'
 import { logMutation } from '@/lib/audit'
 
 const FORBIDDEN_PLAYER_FIELDS = ['id', 'team_id', 'created_at'] as const
@@ -15,7 +15,7 @@ type UpdatePayload = Partial<{
 }>
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const scope = await requireTeamScope()
+  const scope = await requireTeamWriteScope()
   if (scope instanceof NextResponse) return scope
 
   // Verify the player belongs to this team
@@ -91,7 +91,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
-  const scope = await requireTeamScope()
+  const scope = await requireTeamWriteScope()
   if (scope instanceof NextResponse) return scope
 
   // Verify the player belongs to this team

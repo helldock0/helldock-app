@@ -1,12 +1,12 @@
 import { ingestMatch } from '@/lib/henrik/ingest'
 import { baseUrlFromRequest } from '@/lib/discord'
-import { requireTeamScope } from '@/lib/route-guard'
+import { requireTeamWriteScope } from '@/lib/route-guard'
 import { logMutation } from '@/lib/audit'
 import { NextResponse } from 'next/server'
 import type { MatchPreview } from '../fetch/route'
 
 export async function POST(req: Request) {
-  const scope = await requireTeamScope()
+  const scope = await requireTeamWriteScope()
   if (scope instanceof NextResponse) return scope
 
   const { teamSlug, selectedMatches }: { teamSlug: string; selectedMatches: MatchPreview[] } =

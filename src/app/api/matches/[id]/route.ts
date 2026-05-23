@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
-import { requireTeamScope, stripFields } from '@/lib/route-guard'
+import { requireTeamWriteScope, stripFields } from '@/lib/route-guard'
 import { logMutation } from '@/lib/audit'
 
 const FORBIDDEN_FIELDS = ['id', 'team_id', 'created_at', 'henrik_id', 'match_id_helldock'] as const
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const scope = await requireTeamScope()
+  const scope = await requireTeamWriteScope()
   if (scope instanceof NextResponse) return scope
 
   const body = (await req.json()) as Record<string, unknown>

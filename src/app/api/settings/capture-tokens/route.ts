@@ -1,24 +1,21 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { requireSelectedTeam } from '@/lib/team-session'
+import { requireTeamScope, requireTeamWriteScope } from '@/lib/route-guard'
 import { generateToken } from '@/lib/captures/token'
+import { logMutation } from '@/lib/audit'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const { teamId } = await requireSelectedTeam()
-  const supabase = createClient()
+  const scope = await requireTeamScope()
+  if (scope instanceof NextResponse) return scope
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-
-  const { data, error } = await supabase
+  const { data, error } = await scope.supabase
     .from('capture_tokens')
     .select(`
       id, label, created_at, last_used_at, revoked_at,
       players!inner(id, display_name)
     `)
-    .eq('team_id', teamId)
+    .eq('team_id', scope.teamId)
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -40,11 +37,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { teamId } = await requireSelectedTeam()
-  const supabase = createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  const scope = await requireTeamWriteScope()
+  if (scope instanceof NextResponse) return scope
 
   const body = (await req.json().catch(() => null)) as { label?: unknown; playerId?: unknown } | null
   const label = typeof body?.label === 'string' ? body.label.trim() : ''
@@ -54,24 +48,24 @@ export async function POST(req: Request) {
   if (!playerId) return NextResponse.json({ error: 'playerId required' }, { status: 400 })
 
   // Verify player belongs to selected team
-  const { data: player } = await supabase
+  const { data: player } = await scope.supabase
     .from('players')
     .select('id, display_name, team_id')
     .eq('id', playerId)
     .single()
-  if (!player || player.team_id !== teamId) {
+  if (!player || player.team_id !== scope.teamId) {
     return NextResponse.json({ error: 'player not in selected team' }, { status: 400 })
   }
 
   const { plaintext, hash } = generateToken()
-  const { data: inserted, error } = await supabase
+  const { data: inserted, error } = await scope.supabase
     .from('capture_tokens')
     .insert({
       token_hash: hash,
       label,
       player_id: playerId,
-      team_id: teamId,
-      created_by_user_id: user.id,
+      team_id: scope.teamId,
+      created_by_user_id: scope.userId,
     })
     .select('id, label, created_at')
     .single()
@@ -80,7 +74,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error?.message ?? 'insert failed' }, { status: 500 })
   }
 
-  // Plaintext returned ONCE — UI shows it in a copy-able box and never asks again.
+  logMutation({
+    userId: scope.userId,
+    teamId: scope.teamId,
+    action: 'insert',
+    table: 'capture_tokens',
+    rowId: inserted.id,
+    changes: { label, player_id: playerId },
+  })
+
   return NextResponse.json({
     id: inserted.id,
     label: inserted.label,

@@ -4,21 +4,40 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import GlobalSearch from './GlobalSearch'
 
+type NavCapabilities = {
+  canEdit: boolean        // coach + above
+  isOrgAdmin: boolean     // org_admin / org_owner / platform_admin
+  isPlatformAdmin: boolean
+}
+
 const LINKS = [
-  { href: '/', label: 'Home', match: (p: string) => p === '/' },
-  { href: '/matches', label: 'Matches', match: (p: string) => p.startsWith('/matches') && p !== '/matches/new' },
-  { href: '/calendar', label: 'Calendar', match: (p: string) => p.startsWith('/calendar') },
-  { href: '/analytics', label: 'Analytics', match: (p: string) => p.startsWith('/analytics') },
-  { href: '/trends', label: 'Trends', match: (p: string) => p.startsWith('/trends') },
-  { href: '/import', label: 'Import', match: (p: string) => p.startsWith('/import') },
-  { href: '/roster', label: 'Roster', match: (p: string) => p.startsWith('/roster') },
+  { href: '/', label: 'Home', match: (p: string) => p === '/', minRole: 'player' as const },
+  { href: '/me', label: 'My stats', match: (p: string) => p.startsWith('/me'), minRole: 'player' as const },
+  { href: '/matches', label: 'Matches', match: (p: string) => p.startsWith('/matches') && p !== '/matches/new', minRole: 'player' as const },
+  { href: '/calendar', label: 'Calendar', match: (p: string) => p.startsWith('/calendar'), minRole: 'player' as const },
+  { href: '/analytics', label: 'Analytics', match: (p: string) => p.startsWith('/analytics'), minRole: 'player' as const },
+  { href: '/trends', label: 'Trends', match: (p: string) => p.startsWith('/trends'), minRole: 'player' as const },
+  { href: '/import', label: 'Import', match: (p: string) => p.startsWith('/import'), minRole: 'coach' as const },
+  { href: '/roster', label: 'Roster', match: (p: string) => p.startsWith('/roster'), minRole: 'player' as const },
+  { href: '/team/members', label: 'Members', match: (p: string) => p.startsWith('/team/members'), minRole: 'org_admin' as const },
 ] as const
 
-export default function AppNav({ currentTeamSlug }: { currentTeamSlug: string | null }) {
+function canSee(linkMinRole: 'player' | 'coach' | 'org_admin', caps: NavCapabilities): boolean {
+  if (linkMinRole === 'player') return true
+  if (linkMinRole === 'coach') return caps.canEdit
+  return caps.isOrgAdmin
+}
+
+export default function AppNav({
+  currentTeamSlug,
+  capabilities,
+}: {
+  currentTeamSlug: string | null
+  capabilities: NavCapabilities
+}) {
   const pathname = usePathname() ?? '/'
   const router = useRouter()
 
-  // Picker has its own full-screen layout — hide the global nav there.
   if (pathname === '/select-team') return null
 
   return (
@@ -70,7 +89,7 @@ export default function AppNav({ currentTeamSlug }: { currentTeamSlug: string | 
         </div>
 
         <nav className="flex items-center gap-1">
-          {LINKS.map((link) => {
+          {LINKS.filter((l) => canSee(l.minRole, capabilities)).map((link) => {
             const active = link.match(pathname)
             return (
               <Link
@@ -89,38 +108,42 @@ export default function AppNav({ currentTeamSlug }: { currentTeamSlug: string | 
               </Link>
             )
           })}
-          <Link
-            href="/matches/new"
-            className="ml-2 px-3 py-1.5 bg-gold text-black font-semibold rounded-md text-sm hover:bg-gold-hover transition-colors"
-          >
-            + New
-          </Link>
-          <Link
-            href="/settings"
-            aria-label="Team settings"
-            title="Team settings"
-            className={`ml-1 p-1.5 rounded-md transition-colors ${
-              pathname.startsWith('/settings')
-                ? 'text-gold'
-                : 'text-muted hover:text-fg'
-            }`}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
+          {capabilities.canEdit && (
+            <Link
+              href="/matches/new"
+              className="ml-2 px-3 py-1.5 bg-gold text-black font-semibold rounded-md text-sm hover:bg-gold-hover transition-colors"
             >
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </Link>
+              + New
+            </Link>
+          )}
+          {capabilities.canEdit && (
+            <Link
+              href="/settings"
+              aria-label="Team settings"
+              title="Team settings"
+              className={`ml-1 p-1.5 rounded-md transition-colors ${
+                pathname.startsWith('/settings')
+                  ? 'text-gold'
+                  : 'text-muted hover:text-fg'
+              }`}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </Link>
+          )}
         </nav>
       </div>
     </header>
