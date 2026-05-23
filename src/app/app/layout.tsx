@@ -11,6 +11,17 @@ export default async function AuthedLayout({ children }: { children: React.React
   const currentTeamSlug = getSelectedTeamSlug()
   const role = await getCurrentTeamRole()
 
+  // Suspension gate: if the user's selected team belongs to a suspended org,
+  // and the user isn't platform_admin, send them to /suspended.
+  if (currentTeamSlug && !ctx.isPlatformAdmin) {
+    const selectedOrg = ctx.memberships.find((o) =>
+      o.teams.some((t) => t.teamSlug === currentTeamSlug)
+    )
+    if (selectedOrg?.suspended) {
+      redirect('/suspended')
+    }
+  }
+
   const canEdit = role === 'coach' || role === 'org_admin' || role === 'org_owner' || role === 'platform_admin'
   const isOrgAdmin = role === 'org_admin' || role === 'org_owner' || role === 'platform_admin'
   const isPlatformAdmin = role === 'platform_admin'

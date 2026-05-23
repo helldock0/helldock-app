@@ -35,7 +35,8 @@ export async function middleware(request: NextRequest) {
     path.startsWith('/auth') ||
     path.startsWith('/signup') ||
     path.startsWith('/invite') ||
-    path.startsWith('/onboarding')
+    path.startsWith('/onboarding') ||
+    path.startsWith('/suspended')
 
   // / and /pro-scout are public marketing surfaces — anyone reads.
   const isPublicMarketing = path === '/' || path.startsWith('/pro-scout')

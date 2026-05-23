@@ -116,6 +116,18 @@ export default function AppNav({
               + New
             </Link>
           )}
+          {capabilities.isPlatformAdmin && (
+            <Link
+              href="/admin"
+              className={`ml-2 px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                pathname.startsWith('/admin')
+                  ? 'border-gold text-gold'
+                  : 'border-gold/40 text-gold/80 hover:border-gold hover:text-gold'
+              }`}
+            >
+              Admin
+            </Link>
+          )}
           {capabilities.canEdit && (
             <Link
               href="/app/settings"
