@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from './supabase/server'
+import { getCurrentUserContext } from './authz'
 
 export const TEAM_COOKIE = 'helldock_team'
 
@@ -28,8 +29,11 @@ export function clearSelectedTeamSlug() {
 
 /**
  * Require an active team for the current request. Redirects to /select-team
- * if the cookie is missing or refers to a non-existent team. Returns the team
- * UUID + slug + display name for use in queries.
+ * if the cookie is missing, refers to a team the user isn't a member of, or
+ * refers to a non-existent team. Returns the team UUID + slug + display name
+ * for use in queries.
+ *
+ * Platform admins can select any team that exists.
  */
 export async function requireSelectedTeam(): Promise<{
   teamId: string
@@ -39,13 +43,28 @@ export async function requireSelectedTeam(): Promise<{
   const slug = getSelectedTeamSlug()
   if (!slug) redirect('/select-team')
 
-  const supabase = createClient()
-  const { data: team } = await supabase
-    .from('teams')
-    .select('id, slug, name')
-    .eq('slug', slug)
-    .single()
+  const ctx = await getCurrentUserContext()
+  if (!ctx) redirect('/login')
 
-  if (!team) redirect('/select-team')
-  return { teamId: team.id, teamSlug: team.slug, teamName: team.name }
+  // Look up the team in the user's memberships
+  for (const org of ctx.memberships) {
+    const team = org.teams.find((t) => t.teamSlug === slug)
+    if (team) {
+      return { teamId: team.teamId, teamSlug: team.teamSlug, teamName: team.teamName }
+    }
+  }
+
+  // Platform admin can select any team
+  if (ctx.isPlatformAdmin) {
+    const supabase = createClient()
+    const { data: team } = await supabase
+      .from('teams')
+      .select('id, slug, name')
+      .eq('slug', slug)
+      .single()
+    if (team) return { teamId: team.id, teamSlug: team.slug, teamName: team.name }
+  }
+
+  // Cookie names a team the user can't access — boot to picker
+  redirect('/select-team')
 }

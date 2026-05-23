@@ -71,6 +71,7 @@ export async function POST(req: Request) {
       label,
       player_id: playerId,
       team_id: teamId,
+      created_by_user_id: user.id,
     })
     .select('id, label, created_at')
     .single()

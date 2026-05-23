@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from './supabase/server'
 import { getSelectedTeamSlug } from './team-session'
+import { getCurrentUserContext } from './authz'
 
 export type TeamScope = {
   teamId: string
@@ -12,25 +13,39 @@ export type TeamScope = {
 /**
  * Resolve { teamId, userId, supabase } for an authed mutation route. Returns
  * a NextResponse (401/400/404) when the request lacks a session, lacks a team
- * cookie, or names a team that doesn't exist. Caller short-circuits by
- * returning that response.
+ * cookie, or names a team the user isn't a member of. Platform admins can
+ * scope to any team.
  */
 export async function requireTeamScope(): Promise<TeamScope | NextResponse> {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await getCurrentUserContext()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const slug = getSelectedTeamSlug()
   if (!slug) return NextResponse.json({ error: 'No team selected' }, { status: 400 })
 
-  const { data: team } = await supabase
-    .from('teams')
-    .select('id, slug')
-    .eq('slug', slug)
-    .single()
-  if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+  const supabase = createClient()
 
-  return { teamId: team.id, teamSlug: team.slug, userId: user.id, supabase }
+  // Look up the team in the user's memberships
+  for (const org of ctx.memberships) {
+    const team = org.teams.find((t) => t.teamSlug === slug)
+    if (team) {
+      return { teamId: team.teamId, teamSlug: team.teamSlug, userId: ctx.userId, supabase }
+    }
+  }
+
+  // Platform admin can select any team
+  if (ctx.isPlatformAdmin) {
+    const { data: team } = await supabase
+      .from('teams')
+      .select('id, slug')
+      .eq('slug', slug)
+      .single()
+    if (team) {
+      return { teamId: team.id, teamSlug: team.slug, userId: ctx.userId, supabase }
+    }
+  }
+
+  return NextResponse.json({ error: 'Team not found' }, { status: 404 })
 }
 
 /** Drop forbidden keys before passing a body into a Supabase update. */
