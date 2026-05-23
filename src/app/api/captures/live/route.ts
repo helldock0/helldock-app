@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { authenticateToken } from '@/lib/captures/token'
+import { optionsResponse, withCors } from '@/lib/captures/cors'
 
 export const dynamic = 'force-dynamic'
+
+export function OPTIONS() { return optionsResponse() }
 
 interface KillData {
   attacker_id: string
@@ -39,7 +42,7 @@ export async function POST(req: Request) {
 
   const auth = await authenticateToken(supabase, req.headers.get('authorization'))
   if (!auth) {
-    return NextResponse.json({ error: 'invalid or revoked token' }, { status: 401 })
+    return withCors(NextResponse.json({ error: 'invalid or revoked token' }, { status: 401 }))
   }
 
   const body = (await req.json().catch(() => null)) as {
@@ -49,12 +52,12 @@ export async function POST(req: Request) {
 
   const henrikId = typeof body?.henrikId === 'string' ? body.henrikId.trim() : ''
   if (!henrikId) {
-    return NextResponse.json({ error: 'henrikId required' }, { status: 400 })
+    return withCors(NextResponse.json({ error: 'henrikId required' }, { status: 400 }))
   }
 
   const rounds = Array.isArray(body?.rounds) ? (body.rounds as LiveRoundPayload[]) : []
   if (rounds.length === 0) {
-    return NextResponse.json({ status: 'ingested', rows: 0 })
+    return withCors(NextResponse.json({ status: 'ingested', rows: 0 }))
   }
 
   const rows = rounds.map((r) => ({
@@ -78,8 +81,8 @@ export async function POST(req: Request) {
 
   if (error) {
     console.error('[live] upsert error:', error)
-    return NextResponse.json({ error: error.message }, { status: 502 })
+    return withCors(NextResponse.json({ error: error.message }, { status: 502 }))
   }
 
-  return NextResponse.json({ status: 'ingested', rows: rows.length })
+  return withCors(NextResponse.json({ status: 'ingested', rows: rows.length }))
 }

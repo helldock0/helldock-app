@@ -3,8 +3,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { authenticateToken } from '@/lib/captures/token'
 import { ingestMatch } from '@/lib/henrik/ingest'
 import { baseUrlFromRequest } from '@/lib/discord'
+import { optionsResponse, withCors } from '@/lib/captures/cors'
 
 export const dynamic = 'force-dynamic'
+
+export function OPTIONS() { return optionsResponse() }
 
 /**
  * Bearer-token endpoint used by the helldock-capture tray agent. The agent
@@ -41,14 +44,14 @@ export async function POST(req: Request) {
 
   if (result.status === 'error') {
     const status = result.upstreamStatus === 404 ? 404 : 502
-    return NextResponse.json({ status: 'error', error: result.error }, { status })
+    return withCors(NextResponse.json({ status: 'error', error: result.error }, { status }))
   }
 
-  return NextResponse.json({
+  return withCors(NextResponse.json({
     status: result.status,
     helldockId: result.helldockId,
     matchUUID: result.matchUUID,
     team: auth.teamName,
     capturedBy: auth.playerName,
-  })
+  }))
 }
