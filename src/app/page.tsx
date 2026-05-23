@@ -4,32 +4,26 @@ export const dynamic = 'force-dynamic'
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-[#0E0E12] text-white">
+    <div className="min-h-screen bg-bg text-fg">
       {/* Top bar */}
-      <header className="border-b border-[#1F1F26]">
+      <header className="border-b border-line/40">
         <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-baseline gap-2">
-            <span className="text-[#FFD700] font-bold tracking-[0.18em] text-sm">HELLDOCK</span>
-            <span className="text-[#6B7280] text-2xs uppercase tracking-[0.2em] hidden sm:inline">
+            <span className="text-gold font-bold tracking-[0.18em] text-sm">HELLDOCK</span>
+            <span className="text-muted-2 text-2xs uppercase tracking-[0.2em] hidden sm:inline">
               scrim ops
             </span>
           </div>
           <nav className="flex items-center gap-2 text-sm">
             <Link
-              href="/pro-scout"
-              className="text-[#6B7280] hover:text-white transition-colors px-3 py-1.5"
-            >
-              Pro scout
-            </Link>
-            <Link
               href="/login"
-              className="text-[#6B7280] hover:text-white transition-colors px-3 py-1.5"
+              className="text-muted-2 hover:text-fg transition-colors px-3 py-1.5"
             >
               Sign in
             </Link>
             <Link
               href="/signup"
-              className="bg-[#FFD700] text-[#0E0E12] font-semibold px-4 py-1.5 rounded-md hover:bg-yellow-300 transition-colors"
+              className="bg-gold text-bg font-semibold px-4 py-1.5 rounded-md hover:bg-gold-hover transition-colors"
             >
               Join waitlist
             </Link>
@@ -39,14 +33,14 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="max-w-4xl mx-auto px-6 pt-20 pb-16 text-center">
-        <p className="text-[#FFD700] text-2xs uppercase tracking-[0.3em] mb-6">
+        <p className="text-gold text-2xs uppercase tracking-[0.3em] mb-6">
           coaching analytics for valorant esports teams
         </p>
         <h1 className="text-5xl sm:text-6xl font-bold tracking-tight mb-6 leading-[1.05]">
           Scrim review,{' '}
-          <span className="text-[#FFD700]">without the spreadsheet.</span>
+          <span className="text-gold">without the spreadsheet.</span>
         </h1>
-        <p className="text-[#9CA3AF] text-lg max-w-2xl mx-auto mb-10 leading-relaxed">
+        <p className="text-muted text-lg max-w-2xl mx-auto mb-10 leading-relaxed">
           Helldock turns every custom match into a coach-ready breakdown — PULSE
           dashboard, comp lab, opponent dossier, per-player impact. Built for
           tier-2/3 teams who want pro-level review without the pro-level staff.
@@ -54,28 +48,22 @@ export default function LandingPage() {
         <div className="flex items-center justify-center gap-3 flex-wrap">
           <Link
             href="/signup"
-            className="bg-[#FFD700] text-[#0E0E12] font-semibold px-6 py-3 rounded-md hover:bg-yellow-300 transition-colors"
+            className="bg-gold text-bg font-semibold px-6 py-3 rounded-md hover:bg-gold-hover transition-colors"
           >
             Join the alpha waitlist
           </Link>
-          <Link
-            href="/pro-scout"
-            className="border border-[#3C3C44] text-white px-6 py-3 rounded-md hover:border-[#FFD700] hover:text-[#FFD700] transition-colors"
-          >
-            See pro-scout demo →
-          </Link>
         </div>
-        <p className="text-[#4B5563] text-xs mt-6">
+        <p className="text-muted-2/70 text-xs mt-6">
           Currently in private alpha with two competing teams. Email approval typically takes a few days.
         </p>
       </section>
 
       {/* Feature pillars */}
       <section className="max-w-6xl mx-auto px-6 py-16">
-        <h2 className="text-2xs uppercase tracking-[0.3em] text-[#6B7280] mb-2 text-center">
+        <h2 className="text-2xs uppercase tracking-[0.3em] text-muted-2 mb-2 text-center">
           what helldock gives you
         </h2>
-        <p className="text-center text-2xl text-white font-bold mb-12">
+        <p className="text-center text-2xl text-fg font-bold mb-12">
           Four tools that replace your scrim-review xlsx.
         </p>
 
@@ -104,34 +92,34 @@ export default function LandingPage() {
       </section>
 
       {/* Problem statement */}
-      <section className="max-w-4xl mx-auto px-6 py-16 border-t border-[#1F1F26]">
-        <h2 className="text-2xs uppercase tracking-[0.3em] text-[#6B7280] mb-3 text-center">
+      <section className="max-w-4xl mx-auto px-6 py-16 border-t border-line/40">
+        <h2 className="text-2xs uppercase tracking-[0.3em] text-muted-2 mb-3 text-center">
           why we&rsquo;re building this
         </h2>
-        <h3 className="text-3xl font-bold text-white text-center mb-6">
+        <h3 className="text-3xl font-bold text-fg text-center mb-6">
           Excel scrim review is broken.
         </h3>
-        <ul className="text-[#9CA3AF] text-base space-y-3 max-w-2xl mx-auto">
+        <ul className="text-muted text-base space-y-3 max-w-2xl mx-auto">
           <li className="flex gap-3">
-            <span className="text-[#FFD700]">→</span>
+            <span className="text-gold">→</span>
             <span>
               Coaches paste KDA into Sheets, lose 30 min, and still don&rsquo;t know if the round 7 rotate was the right call.
             </span>
           </li>
           <li className="flex gap-3">
-            <span className="text-[#FFD700]">→</span>
+            <span className="text-gold">→</span>
             <span>
               Tracker.gg and Mobalytics focus on solo ranked. They don&rsquo;t help you watch your team review a scrim block.
             </span>
           </li>
           <li className="flex gap-3">
-            <span className="text-[#FFD700]">→</span>
+            <span className="text-gold">→</span>
             <span>
               The pro-tier video review software (StatsHelix, Shadow.gg) starts at $500/mo and is built for franchises, not tier-2/3 grinders.
             </span>
           </li>
           <li className="flex gap-3">
-            <span className="text-[#FFD700]">→</span>
+            <span className="text-gold">→</span>
             <span>
               Helldock sits in the middle. Coach-grade analytics for teams who can&rsquo;t afford a dedicated stats coach yet.
             </span>
@@ -141,27 +129,26 @@ export default function LandingPage() {
 
       {/* CTA */}
       <section className="max-w-3xl mx-auto px-6 py-20 text-center">
-        <h2 className="text-3xl font-bold text-white mb-4">
+        <h2 className="text-3xl font-bold text-fg mb-4">
           Ready to ditch the spreadsheet?
         </h2>
-        <p className="text-[#9CA3AF] mb-8">
+        <p className="text-muted mb-8">
           Drop your org name + email. We&rsquo;ll review and send your invite within a few days.
         </p>
         <Link
           href="/signup"
-          className="inline-block bg-[#FFD700] text-[#0E0E12] font-semibold px-8 py-3 rounded-md hover:bg-yellow-300 transition-colors"
+          className="inline-block bg-gold text-bg font-semibold px-8 py-3 rounded-md hover:bg-gold-hover transition-colors"
         >
           Join the waitlist →
         </Link>
       </section>
 
-      <footer className="border-t border-[#1F1F26] py-8">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-2xs text-[#4B5563] uppercase tracking-wider">
+      <footer className="border-t border-line/40 py-8">
+        <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-2xs text-muted-2/70 uppercase tracking-wider">
           <span>helldock © 2026 · private alpha</span>
           <div className="flex gap-4">
-            <Link href="/pro-scout" className="hover:text-[#FFD700]">pro-scout</Link>
-            <Link href="/login" className="hover:text-[#FFD700]">sign in</Link>
-            <Link href="/signup" className="hover:text-[#FFD700]">waitlist</Link>
+            <Link href="/login" className="hover:text-gold transition-colors">sign in</Link>
+            <Link href="/signup" className="hover:text-gold transition-colors">waitlist</Link>
           </div>
         </div>
       </footer>
@@ -171,10 +158,10 @@ export default function LandingPage() {
 
 function FeatureCard({ title, sub, body }: { title: string; sub: string; body: string }) {
   return (
-    <div className="bg-[#1A1A20] border border-[#1F1F26] rounded-xl p-6 hover:border-[#FFD700]/30 transition-colors">
-      <h3 className="text-[#FFD700] font-bold text-lg mb-1">{title}</h3>
-      <p className="text-[#6B7280] text-xs uppercase tracking-wider mb-3">{sub}</p>
-      <p className="text-[#9CA3AF] text-sm leading-relaxed">{body}</p>
+    <div className="bg-surface border border-line/40 rounded-xl p-6 hover:border-gold/30 transition-colors">
+      <h3 className="text-gold font-bold text-lg mb-1">{title}</h3>
+      <p className="text-muted-2 text-xs uppercase tracking-wider mb-3">{sub}</p>
+      <p className="text-muted text-sm leading-relaxed">{body}</p>
     </div>
   )
 }
