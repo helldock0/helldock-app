@@ -21,8 +21,10 @@ type View = 'auto' | 'dots' | 'density'
 
 const STORAGE_KEY = 'helldock.matchHeatmap.view'
 const DENSITY_AUTO_THRESHOLD = 50
-const OUR_KILL_COLOR = '#34d399'
-const OUR_DEATH_COLOR = '#ef4444'
+// SVG fills must be hex literals (Recharts/SVG don't read Tailwind classes).
+// Keep these in sync with the win-green / crimson Tailwind tokens.
+const OUR_KILL_COLOR = '#34D399' // = win-green token
+const OUR_DEATH_COLOR = '#DC143C' // = crimson token
 
 export default function MatchHeatmap({
   mapName,

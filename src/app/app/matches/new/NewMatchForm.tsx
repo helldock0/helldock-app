@@ -17,8 +17,8 @@ function todayISO() {
 }
 
 const inputClass =
-  'w-full bg-[#1F1F24] border border-[#3C3C44] text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#FFD700] transition-colors'
-const labelClass = 'block text-[#6B7280] text-xs uppercase tracking-wide mb-1'
+  'w-full bg-surface border border-line-strong text-fg rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold transition-colors'
+const labelClass = 'block text-muted-2 text-xs uppercase tracking-wide mb-1'
 
 export default function NewMatchForm({
   lockedTeamSlug,
@@ -118,10 +118,10 @@ export default function NewMatchForm({
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       {/* Top meta */}
-      <section className="bg-[#2C2C32] rounded-xl p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <section className="bg-surface-2 rounded-xl p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label className={labelClass}>Team</label>
-          <div className="flex items-center gap-2 h-[38px] px-3 rounded-lg border border-[#3C3C44] bg-[#1F1F24]">
+          <div className="flex items-center gap-2 h-[38px] px-3 rounded-lg border border-line-strong bg-surface">
             <span className="text-2xs uppercase tracking-[0.18em] px-2 py-0.5 rounded border border-gold/40 bg-gold/10 text-gold font-bold">
               {lockedTeamSlug}
             </span>
@@ -224,12 +224,12 @@ export default function NewMatchForm({
       </section>
 
       {/* Our players */}
-      <section className="bg-[#2C2C32] rounded-xl p-5">
-        <h2 className="text-[#FFD700] text-sm uppercase tracking-wide mb-3">Our Lineup</h2>
+      <section className="bg-surface-2 rounded-xl p-5">
+        <h2 className="text-gold text-sm uppercase tracking-wide mb-3">Our Lineup</h2>
         <div className="space-y-2">
           {ourRows.map((row, i) => (
             <div key={i} className="grid grid-cols-12 gap-3 items-center">
-              <div className="col-span-1 text-[#6B7280] text-xs font-mono">#{i + 1}</div>
+              <div className="col-span-1 text-muted-2 text-xs font-mono">#{i + 1}</div>
               <div className="col-span-6">
                 <select
                   value={row.player_id}
@@ -264,9 +264,9 @@ export default function NewMatchForm({
       </section>
 
       {/* Opp agents */}
-      <section className="bg-[#2C2C32] rounded-xl p-5">
-        <h2 className="text-[#FFD700] text-sm uppercase tracking-wide mb-1">Opp Agents</h2>
-        <p className="text-[#6B7280] text-xs mb-3">Optional — leave blank if hidden</p>
+      <section className="bg-surface-2 rounded-xl p-5">
+        <h2 className="text-gold text-sm uppercase tracking-wide mb-1">Opp Agents</h2>
+        <p className="text-muted-2 text-xs mb-3">Optional — leave blank if hidden</p>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           {oppAgents.map((agent, i) => (
             <div key={i}>
@@ -289,7 +289,7 @@ export default function NewMatchForm({
       </section>
 
       {/* Vibe + notes */}
-      <section className="bg-[#2C2C32] rounded-xl p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <section className="bg-surface-2 rounded-xl p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label className={labelClass}>Vibe Tag</label>
           <input
@@ -314,20 +314,20 @@ export default function NewMatchForm({
       {/* Submit */}
       <div className="flex items-center justify-between gap-4">
         <div className="text-sm">
-          {error && <span className="text-[#DC143C]">{error}</span>}
+          {error && <span className="text-crimson">{error}</span>}
         </div>
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => router.push('/app/matches')}
-            className="px-4 py-2 text-sm text-[#6B7280] hover:text-white transition-colors"
+            className="px-4 py-2 text-sm text-muted-2 hover:text-fg transition-colors"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={!canSubmit || submitting}
-            className="px-5 py-2 bg-[#FFD700] text-black font-semibold rounded-lg text-sm hover:bg-[#FFC107] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-5 py-2 bg-gold text-black font-semibold rounded-lg text-sm hover:bg-gold-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {submitting ? 'Saving…' : 'Create match'}
           </button>

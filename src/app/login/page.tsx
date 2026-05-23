@@ -62,33 +62,33 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <h1 className="text-4xl font-bold text-[#FFD700] tracking-tight mb-1">HELLDOCK</h1>
-        <p className="text-[#6B7280] text-sm mb-8">valorant analytics</p>
+        <h1 className="text-4xl font-bold text-gold tracking-tight mb-1">HELLDOCK</h1>
+        <p className="text-muted-2 text-sm mb-8">valorant analytics</p>
 
         {submitted ? (
-          <div className="bg-[#2C2C32] rounded-xl p-6">
-            <p className="text-white font-medium mb-1">check your inbox</p>
-            <p className="text-[#6B7280] text-sm">
-              magic link sent to <span className="text-[#FFD700]">{email}</span>
+          <div className="bg-surface-2 rounded-xl p-6">
+            <p className="text-fg font-medium mb-1">check your inbox</p>
+            <p className="text-muted-2 text-sm">
+              magic link sent to <span className="text-gold">{email}</span>
             </p>
             <button
               type="button"
               onClick={() => { setSubmitted(false); setEmail('') }}
-              className="text-[#6B7280] text-xs mt-4 hover:text-white"
+              className="text-muted-2 text-xs mt-4 hover:text-fg transition-colors"
             >
               use a different email →
             </button>
           </div>
         ) : (
-          <div className="bg-[#2C2C32] rounded-xl overflow-hidden">
-            <div className="flex border-b border-[#3C3C44]">
+          <div className="bg-surface-2 rounded-xl overflow-hidden">
+            <div className="flex border-b border-line-strong">
               <button
                 type="button"
                 onClick={() => { setMode('password'); setError(null) }}
                 className={`flex-1 px-4 py-2.5 text-sm transition-colors ${
                   mode === 'password'
-                    ? 'bg-[#1B1B1F] text-[#FFD700] font-semibold'
-                    : 'text-[#6B7280] hover:text-white'
+                    ? 'bg-surface text-gold font-semibold'
+                    : 'text-muted-2 hover:text-fg'
                 }`}
               >
                 password
@@ -98,8 +98,8 @@ export default function LoginPage() {
                 onClick={() => { setMode('magic'); setError(null) }}
                 className={`flex-1 px-4 py-2.5 text-sm transition-colors ${
                   mode === 'magic'
-                    ? 'bg-[#1B1B1F] text-[#FFD700] font-semibold'
-                    : 'text-[#6B7280] hover:text-white'
+                    ? 'bg-surface text-gold font-semibold'
+                    : 'text-muted-2 hover:text-fg'
                 }`}
               >
                 magic link
@@ -111,7 +111,7 @@ export default function LoginPage() {
               className="p-6 flex flex-col gap-4"
             >
               <div>
-                <label htmlFor="email" className="block text-sm text-[#6B7280] mb-1.5">
+                <label htmlFor="email" className="block text-sm text-muted-2 mb-1.5">
                   email
                 </label>
                 <input
@@ -122,13 +122,13 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full bg-[#1B1B1F] border border-[#3C3C44] rounded-lg px-3 py-2 text-white placeholder-[#4B5563] focus:outline-none focus:border-[#FFD700] transition-colors text-sm"
+                  className="w-full bg-surface border border-line-strong rounded-lg px-3 py-2 text-fg placeholder:text-muted-2/70 focus:outline-none focus:border-gold transition-colors text-sm"
                 />
               </div>
 
               {mode === 'password' && (
                 <div>
-                  <label htmlFor="password" className="block text-sm text-[#6B7280] mb-1.5">
+                  <label htmlFor="password" className="block text-sm text-muted-2 mb-1.5">
                     password
                   </label>
                   <input
@@ -138,17 +138,17 @@ export default function LoginPage() {
                     autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-[#1B1B1F] border border-[#3C3C44] rounded-lg px-3 py-2 text-white placeholder-[#4B5563] focus:outline-none focus:border-[#FFD700] transition-colors text-sm"
+                    className="w-full bg-surface border border-line-strong rounded-lg px-3 py-2 text-fg placeholder:text-muted-2/70 focus:outline-none focus:border-gold transition-colors text-sm"
                   />
                 </div>
               )}
 
-              {error && <p className="text-[#DC143C] text-sm">{error}</p>}
+              {error && <p className="text-crimson text-sm">{error}</p>}
 
               <button
                 type="submit"
                 disabled={loading}
-                className="bg-[#FFD700] text-[#1B1B1F] font-semibold rounded-lg py-2 px-4 hover:bg-yellow-300 disabled:opacity-50 transition-colors text-sm"
+                className="bg-gold text-bg font-semibold rounded-lg py-2 px-4 hover:bg-gold-hover disabled:opacity-50 transition-colors text-sm"
               >
                 {loading
                   ? (mode === 'password' ? 'signing in…' : 'sending…')

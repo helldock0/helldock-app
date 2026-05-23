@@ -30,8 +30,8 @@ export default async function OnboardingPage({
 function Step1CreateOrg({ errorCode }: { errorCode?: string }) {
   return (
     <Shell step={1} of={2}>
-      <h2 className="text-2xl font-bold text-white mb-2">Create your org</h2>
-      <p className="text-[#6B7280] text-sm mb-6">
+      <h2 className="text-2xl font-bold text-fg mb-2">Create your org</h2>
+      <p className="text-muted-2 text-sm mb-6">
         Your org owns all your teams. You can rename it later.
       </p>
       <form action={createOrgAction} className="flex flex-col gap-4">
@@ -55,9 +55,9 @@ function Step1CreateOrg({ errorCode }: { errorCode?: string }) {
 function Step2CreateTeam({ orgName, errorCode }: { orgName: string; errorCode?: string }) {
   return (
     <Shell step={2} of={2}>
-      <h2 className="text-2xl font-bold text-white mb-2">Create your first team</h2>
-      <p className="text-[#6B7280] text-sm mb-6">
-        Adding a team under <span className="text-[#FFD700]">{orgName}</span>. You can add more teams later.
+      <h2 className="text-2xl font-bold text-fg mb-2">Create your first team</h2>
+      <p className="text-muted-2 text-sm mb-6">
+        Adding a team under <span className="text-gold">{orgName}</span>. You can add more teams later.
       </p>
       <form action={createTeamAction} className="flex flex-col gap-4">
         <Field label="Team name" name="name" placeholder="e.g. Apex Main" required />
@@ -81,11 +81,11 @@ function Shell({ step, of, children }: { step: number; of: number; children: Rea
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md">
-        <h1 className="text-4xl font-bold text-[#FFD700] tracking-tight mb-1">HELLDOCK</h1>
-        <p className="text-[#6B7280] text-sm mb-6">
+        <h1 className="text-4xl font-bold text-gold tracking-tight mb-1">HELLDOCK</h1>
+        <p className="text-muted-2 text-sm mb-6">
           setup · step {step} of {of}
         </p>
-        <div className="bg-[#2C2C32] rounded-xl p-6">{children}</div>
+        <div className="bg-surface-2 rounded-xl p-6">{children}</div>
       </div>
     </div>
   )
@@ -106,22 +106,22 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-sm text-[#6B7280] mb-1.5">{label}</label>
+      <label className="block text-sm text-muted-2 mb-1.5">{label}</label>
       <input
         name={name}
         type="text"
         required={required}
         placeholder={placeholder}
-        className="w-full bg-[#1B1B1F] border border-[#3C3C44] rounded-lg px-3 py-2 text-white placeholder-[#4B5563] focus:outline-none focus:border-[#FFD700] transition-colors text-sm"
+        className="w-full bg-surface border border-line-strong rounded-lg px-3 py-2 text-fg placeholder:text-muted-2/70 focus:outline-none focus:border-gold transition-colors text-sm"
       />
-      {hint && <p className="text-[#4B5563] text-xs mt-1">{hint}</p>}
+      {hint && <p className="text-muted-2/70 text-xs mt-1">{hint}</p>}
     </div>
   )
 }
 
 function ErrorLine({ code }: { code?: string }) {
   if (!code) return null
-  return <p className="text-[#DC143C] text-xs">{describeOnboardingError(code)}</p>
+  return <p className="text-crimson text-xs">{describeOnboardingError(code)}</p>
 }
 
 function describeOnboardingError(code: string): string {
@@ -140,4 +140,4 @@ function describeOnboardingError(code: string): string {
 }
 
 const primaryBtn =
-  'bg-[#FFD700] text-[#1B1B1F] font-semibold rounded-lg py-2 px-4 hover:bg-yellow-300 transition-colors text-sm'
+  'bg-gold text-bg font-semibold rounded-lg py-2 px-4 hover:bg-gold-hover transition-colors text-sm'

@@ -24,7 +24,7 @@ export default function ReviewItemCard({
   const sideLabel =
     item.side === 'Attack' ? 'ATT' : item.side === 'Defense' ? 'DEF' : '—'
   const sideColor =
-    item.side === 'Attack' ? 'text-[#FFD700]' : item.side === 'Defense' ? 'text-[#FF6B6B]' : 'text-[#6B7280]'
+    item.side === 'Attack' ? 'text-gold' : item.side === 'Defense' ? 'text-crimson' : 'text-muted-2'
   const outcomeColor =
     item.outcome === 'W' ? 'text-win-green' : 'text-crimson'
   const accentColor = item.outcome === 'W' ? 'border-l-win-green' : 'border-l-crimson'
@@ -37,7 +37,7 @@ export default function ReviewItemCard({
 
   return (
     <div
-      className={`bg-[#2C2C32] rounded-xl border-l-4 ${accentColor} p-4 flex gap-4 items-start hover:bg-[#33333A] transition-colors`}
+      className={`bg-surface-2 rounded-xl border-l-4 ${accentColor} p-4 flex gap-4 items-start hover:bg-surface-3 transition-colors`}
     >
       {/* Thumbnail */}
       <div className="shrink-0">
@@ -47,7 +47,7 @@ export default function ReviewItemCard({
           alt={`Round ${item.roundNum} kill heatmap`}
           width={160}
           height={160}
-          className="rounded-lg bg-[#1B1B1F] object-cover"
+          className="rounded-lg bg-surface object-cover"
           loading="lazy"
         />
       </div>
@@ -56,37 +56,37 @@ export default function ReviewItemCard({
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline justify-between gap-3 mb-2">
           <div className="flex items-baseline gap-2 flex-wrap">
-            <span className="text-2xl font-bold font-mono text-white tabular-nums">
+            <span className="text-2xl font-bold font-mono text-fg tabular-nums">
               R{item.roundNum}
             </span>
             <span className={`text-xs font-bold uppercase tracking-wider ${sideColor}`}>
               {sideLabel}
             </span>
             {item.roundType && (
-              <span className="text-xs text-[#6B7280] uppercase tracking-wider">
+              <span className="text-xs text-muted-2 uppercase tracking-wider">
                 · {item.roundType}
               </span>
             )}
             <span className={`text-sm font-bold ${outcomeColor}`}>
               · {item.outcome === 'W' ? 'won' : 'lost'}
             </span>
-            <span className="text-xs text-[#6B7280] tabular-nums">
+            <span className="text-xs text-muted-2 tabular-nums">
               [{item.scoreAtStart.ours}–{item.scoreAtStart.theirs}]
             </span>
             {item.coachGrade != null && (
-              <span className="text-xs text-[#9CA3AF]">
+              <span className="text-xs text-muted">
                 · grade {item.coachGrade}/5
               </span>
             )}
             {item.coachGrade == null && (
-              <span className="text-xs text-[#FFD700] opacity-80">
+              <span className="text-xs text-gold opacity-80">
                 · ungraded
               </span>
             )}
           </div>
           <div className="shrink-0 text-right">
-            <div className="text-xs text-[#6B7280] uppercase tracking-wider">score</div>
-            <div className="text-xl font-bold font-mono text-[#FFD700] tabular-nums">
+            <div className="text-xs text-muted-2 uppercase tracking-wider">score</div>
+            <div className="text-xl font-bold font-mono text-gold tabular-nums">
               {scorePct}
             </div>
           </div>
@@ -95,8 +95,8 @@ export default function ReviewItemCard({
         {/* Reasons */}
         <ul className="space-y-1 mb-3">
           {topReasons.map((r, i) => (
-            <li key={`${r.kind}-${i}`} className="text-sm text-[#D1D5DB] flex items-start gap-1.5">
-              <span className="text-[#FFD700] mt-0.5 shrink-0">↗</span>
+            <li key={`${r.kind}-${i}`} className="text-sm text-fg/80 flex items-start gap-1.5">
+              <span className="text-gold mt-0.5 shrink-0">↗</span>
               <span className="break-words">{r.text}</span>
             </li>
           ))}
@@ -106,7 +106,7 @@ export default function ReviewItemCard({
         <button
           type="button"
           onClick={() => onJumpToRound(item.roundNum)}
-          className="text-xs px-3 py-1.5 rounded-lg bg-[#3C3C44] text-[#6B7280] hover:bg-[#FFD700] hover:text-[#1B1B1F] font-medium transition-colors"
+          className="text-xs px-3 py-1.5 rounded-lg bg-line-strong text-muted-2 hover:bg-gold hover:text-black font-medium transition-colors"
         >
           ▶ Jump to round {item.roundNum} on Rounds tab
         </button>

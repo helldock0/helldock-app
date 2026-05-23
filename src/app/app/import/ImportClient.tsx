@@ -73,9 +73,9 @@ function formatAge(ts: number | null): string {
 }
 
 function ResultBadge({ result }: { result: string }) {
-  if (result === 'W') return <span className="text-green-400 font-bold">W</span>
-  if (result === 'L') return <span className="text-[#DC143C] font-bold">L</span>
-  return <span className="text-[#6B7280]">—</span>
+  if (result === 'W') return <span className="text-win-green font-bold">W</span>
+  if (result === 'L') return <span className="text-crimson font-bold">L</span>
+  return <span className="text-muted-2">—</span>
 }
 
 export default function ImportClient({
@@ -261,7 +261,7 @@ export default function ImportClient({
 
       {/* Controls */}
       <div className="flex items-center gap-3 mb-6">
-        <div className="flex items-center gap-2 h-[38px] px-3 rounded-lg border border-[#3C3C44] bg-[#1F1F24]">
+        <div className="flex items-center gap-2 h-[38px] px-3 rounded-lg border border-line-strong bg-surface">
           <span className="text-2xs uppercase tracking-[0.18em] px-2 py-0.5 rounded border border-gold/40 bg-gold/10 text-gold font-bold">
             {lockedTeamSlug}
           </span>
@@ -271,7 +271,7 @@ export default function ImportClient({
         <button
           onClick={handleFetch}
           disabled={loadState !== 'idle'}
-          className="bg-[#2C2C32] border border-[#3C3C44] text-white rounded-lg px-4 py-2 text-sm hover:border-[#FFD700] hover:text-[#FFD700] disabled:opacity-50 transition-colors"
+          className="bg-surface-2 border border-line-strong text-fg rounded-lg px-4 py-2 text-sm hover:border-gold hover:text-gold disabled:opacity-50 transition-colors"
         >
           {loadState === 'fetching' ? 'Fetching…' : previews.length > 0 ? 'Re-fetch' : 'Fetch latest'}
         </button>
@@ -280,7 +280,7 @@ export default function ImportClient({
           <button
             onClick={handleRehydrateAll}
             disabled={loadState !== 'idle'}
-            className="bg-[#2C2C32] border border-[#3C3C44] text-white rounded-lg px-4 py-2 text-sm hover:border-[#FFD700] hover:text-[#FFD700] disabled:opacity-50 transition-colors"
+            className="bg-surface-2 border border-line-strong text-fg rounded-lg px-4 py-2 text-sm hover:border-gold hover:text-gold disabled:opacity-50 transition-colors"
             title="Re-fetch every match from Henrik V4 to backfill new stats (ADR, HS%, util casts, etc.)"
           >
             {loadState === 'rehydrating' && rehydrateProgress
@@ -313,7 +313,7 @@ export default function ImportClient({
               setFetchError(null)
               setSaveResult(null)
             }}
-            className="text-[#6B7280] text-sm hover:text-[#DC143C] transition-colors"
+            className="text-muted-2 text-sm hover:text-crimson transition-colors"
             title="Clear the cached empty result so a fresh fetch can run"
           >
             Reset
@@ -339,7 +339,7 @@ export default function ImportClient({
           <>
             <button
               onClick={toggleAll}
-              className="text-[#6B7280] text-sm hover:text-white transition-colors"
+              className="text-muted-2 text-sm hover:text-fg transition-colors"
             >
               {selectedCount === importableCount && importableCount > 0 ? 'Deselect all' : 'Select all'}
             </button>
@@ -353,7 +353,7 @@ export default function ImportClient({
                 setFetchError(null)
                 setSaveResult(null)
               }}
-              className="text-[#6B7280] text-sm hover:text-[#DC143C] transition-colors"
+              className="text-muted-2 text-sm hover:text-crimson transition-colors"
               title="Clear the cached list for this team"
             >
               Clear
@@ -362,7 +362,7 @@ export default function ImportClient({
             <button
               onClick={handleSave}
               disabled={selectedCount === 0 || loadState !== 'idle'}
-              className="ml-auto bg-[#FFD700] text-[#1B1B1F] font-semibold rounded-lg px-5 py-2 text-sm hover:bg-yellow-300 disabled:opacity-40 transition-colors"
+              className="ml-auto bg-gold text-black font-semibold rounded-lg px-5 py-2 text-sm hover:bg-gold-hover disabled:opacity-40 transition-colors"
             >
               {loadState === 'saving'
                 ? 'Importing…'
@@ -374,31 +374,31 @@ export default function ImportClient({
 
       {/* Error */}
       {fetchError && (
-        <div className="bg-[#2C2C32] border border-[#DC143C]/40 rounded-xl p-4 mb-4 text-[#DC143C] text-sm">
+        <div className="bg-surface-2 border border-crimson/40 rounded-xl p-4 mb-4 text-crimson text-sm">
           {fetchError}
         </div>
       )}
 
       {/* Success */}
       {saveResult && (
-        <div className="bg-[#2C2C32] border border-green-500/40 rounded-xl p-4 mb-4 text-green-400 text-sm">
+        <div className="bg-surface-2 border border-win-green/40 rounded-xl p-4 mb-4 text-win-green text-sm">
           {saveResult.saved} match{saveResult.saved !== 1 ? 'es' : ''} imported.
           {saveResult.duplicates > 0 && (
-            <span className="text-[#6B7280] ml-2">
+            <span className="text-muted-2 ml-2">
               {saveResult.duplicates} already imported (skipped).
             </span>
           )}
           {saveResult.errors.length > 0 && (
-            <span className="text-[#DC143C] ml-2">{saveResult.errors.length} error(s).</span>
+            <span className="text-crimson ml-2">{saveResult.errors.length} error(s).</span>
           )}
-          {saveResult.saved > 0 && <span className="text-[#6B7280] ml-2">Redirecting…</span>}
+          {saveResult.saved > 0 && <span className="text-muted-2 ml-2">Redirecting…</span>}
         </div>
       )}
 
       {/* Match list */}
       {visiblePreviews.length > 0 && (
-        <div className="bg-[#2C2C32] rounded-xl overflow-hidden">
-          <div className="border-b border-[#3C3C44] px-4 py-2 flex items-center gap-4 text-[#6B7280] text-xs uppercase tracking-wide">
+        <div className="bg-surface-2 rounded-xl overflow-hidden">
+          <div className="border-b border-line-strong px-4 py-2 flex items-center gap-4 text-muted-2 text-xs uppercase tracking-wide">
             <div className="w-5" />
             <div className="w-32">Date</div>
             <div className="flex-1">Map</div>
@@ -417,8 +417,8 @@ export default function ImportClient({
               <label
                 key={p.henrik_id}
                 className={`flex items-center gap-4 px-4 py-3 cursor-pointer transition-colors ${
-                  disabled ? 'opacity-50 cursor-default' : 'hover:bg-[#35353C]'
-                } ${i !== visiblePreviews.length - 1 ? 'border-b border-[#3C3C44]' : ''}`}
+                  disabled ? 'opacity-50 cursor-default' : 'hover:bg-surface-3'
+                } ${i !== visiblePreviews.length - 1 ? 'border-b border-line-strong' : ''}`}
               >
                 <input
                   type="checkbox"
@@ -430,25 +430,25 @@ export default function ImportClient({
                     else next.delete(p.henrik_id)
                     setSelected(next)
                   }}
-                  className="w-4 h-4 accent-[#FFD700]"
+                  className="w-4 h-4 accent-gold"
                 />
-                <div className="w-32 text-[#6B7280] text-sm">{p.date}</div>
-                <div className="flex-1 text-white font-medium">{p.map}</div>
+                <div className="w-32 text-muted-2 text-sm">{p.date}</div>
+                <div className="flex-1 text-fg font-medium">{p.map}</div>
                 <div className="w-16 text-center font-mono text-sm">
                   {p.our_score}–{p.opp_score}
                 </div>
                 <div className="w-10 text-center">
                   <ResultBadge result={p.result} />
                 </div>
-                <div className="w-20 text-center text-[#6B7280] text-sm">{p.rounds_played}</div>
+                <div className="w-20 text-center text-muted-2 text-sm">{p.rounds_played}</div>
                 <div className="w-20 text-center">
                   {p.is_premier ? (
                     <span className="text-xs bg-purple-900/60 text-purple-300 px-2 py-0.5 rounded">Premier</span>
                   ) : (
-                    <span className="text-xs text-[#6B7280]">Custom</span>
+                    <span className="text-xs text-muted-2">Custom</span>
                   )}
                 </div>
-                <div className="w-32 text-[#6B7280] text-xs truncate flex items-center gap-1.5">
+                <div className="w-32 text-muted-2 text-xs truncate flex items-center gap-1.5">
                   <span className="truncate">{p.opp_team_name}</span>
                   {p.is_internal_scrim && (
                     <span
@@ -460,7 +460,7 @@ export default function ImportClient({
                   )}
                 </div>
                 {disabled && (
-                  <span className="text-xs text-green-500 ml-auto shrink-0">✓ imported</span>
+                  <span className="text-xs text-win-green ml-auto shrink-0">✓ imported</span>
                 )}
               </label>
             )
@@ -469,7 +469,7 @@ export default function ImportClient({
       )}
 
       {loadState === 'fetching' && (
-        <div className="bg-[#2C2C32] rounded-xl p-8 text-center text-[#6B7280] text-sm">
+        <div className="bg-surface-2 rounded-xl p-8 text-center text-muted-2 text-sm">
           Fetching from henrikdev…
         </div>
       )}

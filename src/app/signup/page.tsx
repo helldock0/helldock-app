@@ -9,22 +9,22 @@ export default function SignupPage({ searchParams }: { searchParams: { ok?: stri
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-md">
-        <h1 className="text-4xl font-bold text-[#FFD700] tracking-tight mb-1">
+        <h1 className="text-4xl font-bold text-gold tracking-tight mb-1">
           HELLDOCK
         </h1>
-        <p className="text-[#6B7280] text-sm mb-8">
+        <p className="text-muted-2 text-sm mb-8">
           coaching analytics for valorant esports teams
         </p>
 
         {submitted ? (
-          <div className="bg-[#2C2C32] rounded-xl p-6">
-            <p className="text-white font-medium mb-2">you&rsquo;re on the list</p>
-            <p className="text-[#6B7280] text-sm mb-4">
+          <div className="bg-surface-2 rounded-xl p-6">
+            <p className="text-fg font-medium mb-2">you&rsquo;re on the list</p>
+            <p className="text-muted-2 text-sm mb-4">
               we&rsquo;ll email you when your org is activated. usually within a few days.
             </p>
             <Link
               href="/login"
-              className="text-[#FFD700] text-sm hover:underline"
+              className="text-gold text-sm hover:underline"
             >
               already approved? sign in →
             </Link>
@@ -32,37 +32,37 @@ export default function SignupPage({ searchParams }: { searchParams: { ok?: stri
         ) : (
           <form
             action={signupAction}
-            className="bg-[#2C2C32] rounded-xl p-6 flex flex-col gap-4"
+            className="bg-surface-2 rounded-xl p-6 flex flex-col gap-4"
           >
-            <p className="text-white text-sm mb-2">
+            <p className="text-fg text-sm mb-2">
               tell us about your org and we&rsquo;ll review your invite request.
             </p>
 
             <div>
-              <label className="block text-sm text-[#6B7280] mb-1.5">email</label>
+              <label className="block text-sm text-muted-2 mb-1.5">email</label>
               <input
                 name="email"
                 type="email"
                 required
                 placeholder="coach@your-team.gg"
-                className="w-full bg-[#1B1B1F] border border-[#3C3C44] rounded-lg px-3 py-2 text-white placeholder-[#4B5563] focus:outline-none focus:border-[#FFD700] transition-colors text-sm"
+                className="w-full bg-surface border border-line-strong rounded-lg px-3 py-2 text-fg placeholder:text-muted-2/70 focus:outline-none focus:border-gold transition-colors text-sm"
               />
             </div>
 
             <div>
-              <label className="block text-sm text-[#6B7280] mb-1.5">org / team name</label>
+              <label className="block text-sm text-muted-2 mb-1.5">org / team name</label>
               <input
                 name="org_name"
                 type="text"
                 required
                 maxLength={120}
                 placeholder="e.g. Apex Esports"
-                className="w-full bg-[#1B1B1F] border border-[#3C3C44] rounded-lg px-3 py-2 text-white placeholder-[#4B5563] focus:outline-none focus:border-[#FFD700] transition-colors text-sm"
+                className="w-full bg-surface border border-line-strong rounded-lg px-3 py-2 text-fg placeholder:text-muted-2/70 focus:outline-none focus:border-gold transition-colors text-sm"
               />
             </div>
 
             <div>
-              <label className="block text-sm text-[#6B7280] mb-1.5">
+              <label className="block text-sm text-muted-2 mb-1.5">
                 what would you use helldock for?
               </label>
               <textarea
@@ -70,12 +70,12 @@ export default function SignupPage({ searchParams }: { searchParams: { ok?: stri
                 rows={3}
                 maxLength={500}
                 placeholder="scrim review · opponent prep · player development · ..."
-                className="w-full bg-[#1B1B1F] border border-[#3C3C44] rounded-lg px-3 py-2 text-white placeholder-[#4B5563] focus:outline-none focus:border-[#FFD700] transition-colors text-sm resize-none"
+                className="w-full bg-surface border border-line-strong rounded-lg px-3 py-2 text-fg placeholder:text-muted-2/70 focus:outline-none focus:border-gold transition-colors text-sm resize-none"
               />
             </div>
 
             <div>
-              <label className="block text-sm text-[#6B7280] mb-1.5">
+              <label className="block text-sm text-muted-2 mb-1.5">
                 what do you use today? (optional)
               </label>
               <input
@@ -83,20 +83,20 @@ export default function SignupPage({ searchParams }: { searchParams: { ok?: stri
                 type="text"
                 maxLength={200}
                 placeholder="excel / sheets / tracker / coach notes / nothing"
-                className="w-full bg-[#1B1B1F] border border-[#3C3C44] rounded-lg px-3 py-2 text-white placeholder-[#4B5563] focus:outline-none focus:border-[#FFD700] transition-colors text-sm"
+                className="w-full bg-surface border border-line-strong rounded-lg px-3 py-2 text-fg placeholder:text-muted-2/70 focus:outline-none focus:border-gold transition-colors text-sm"
               />
             </div>
 
             <button
               type="submit"
-              className="bg-[#FFD700] text-[#1B1B1F] font-semibold rounded-lg py-2 px-4 hover:bg-yellow-300 transition-colors text-sm"
+              className="bg-gold text-bg font-semibold rounded-lg py-2 px-4 hover:bg-gold-hover transition-colors text-sm"
             >
               join the waitlist
             </button>
 
             <Link
               href="/login"
-              className="text-[#6B7280] text-xs hover:text-white transition-colors text-center"
+              className="text-muted-2 text-xs hover:text-fg transition-colors text-center"
             >
               already have an account? sign in →
             </Link>

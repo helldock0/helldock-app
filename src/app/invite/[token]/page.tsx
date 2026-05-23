@@ -28,25 +28,25 @@ export default async function InvitePage({
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <h1 className="text-4xl font-bold text-[#FFD700] tracking-tight mb-1">HELLDOCK</h1>
-        <p className="text-[#6B7280] text-sm mb-8">invite</p>
+        <h1 className="text-4xl font-bold text-gold tracking-tight mb-1">HELLDOCK</h1>
+        <p className="text-muted-2 text-sm mb-8">invite</p>
 
         {!invite ? (
           <StateCard>
-            <p className="text-white font-medium mb-1">invite not found</p>
-            <p className="text-[#6B7280] text-sm">
+            <p className="text-fg font-medium mb-1">invite not found</p>
+            <p className="text-muted-2 text-sm">
               the link is invalid or has been revoked.
             </p>
           </StateCard>
         ) : invite.accepted_at ? (
           <StateCard>
-            <p className="text-white font-medium mb-1">already accepted</p>
-            <p className="text-[#6B7280] text-sm">this invite has been used.</p>
+            <p className="text-fg font-medium mb-1">already accepted</p>
+            <p className="text-muted-2 text-sm">this invite has been used.</p>
           </StateCard>
         ) : new Date(invite.expires_at) < new Date() ? (
           <StateCard>
-            <p className="text-white font-medium mb-1">expired</p>
-            <p className="text-[#6B7280] text-sm">
+            <p className="text-fg font-medium mb-1">expired</p>
+            <p className="text-muted-2 text-sm">
               ask the person who invited you to send a new one.
             </p>
           </StateCard>
@@ -64,7 +64,7 @@ export default async function InvitePage({
 }
 
 function StateCard({ children }: { children: React.ReactNode }) {
-  return <div className="bg-[#2C2C32] rounded-xl p-6">{children}</div>
+  return <div className="bg-surface-2 rounded-xl p-6">{children}</div>
 }
 
 async function InviteSurface({
@@ -84,10 +84,10 @@ async function InviteSurface({
   if (sent) {
     return (
       <StateCard>
-        <p className="text-white font-medium mb-1">check your inbox</p>
-        <p className="text-[#6B7280] text-sm">
+        <p className="text-fg font-medium mb-1">check your inbox</p>
+        <p className="text-muted-2 text-sm">
           magic link sent to{' '}
-          <span className="text-[#FFD700]">{invite.email}</span>. click the link
+          <span className="text-gold">{invite.email}</span>. click the link
           to come back here, then claim your invite.
         </p>
       </StateCard>
@@ -96,22 +96,22 @@ async function InviteSurface({
 
   if (!user) {
     return (
-      <form action={sendInviteMagicLinkAction} className="bg-[#2C2C32] rounded-xl p-6 flex flex-col gap-4">
+      <form action={sendInviteMagicLinkAction} className="bg-surface-2 rounded-xl p-6 flex flex-col gap-4">
         <div>
-          <p className="text-white font-medium mb-1">you&rsquo;re invited</p>
-          <p className="text-[#6B7280] text-sm">
-            sign in as <span className="text-[#FFD700]">{invite.email}</span> to{' '}
+          <p className="text-fg font-medium mb-1">you&rsquo;re invited</p>
+          <p className="text-muted-2 text-sm">
+            sign in as <span className="text-gold">{invite.email}</span> to{' '}
             {invite.org_id ? 'join your team' : 'set up your org'}.
           </p>
         </div>
         <input type="hidden" name="token" value={token} />
         <input type="hidden" name="email" value={invite.email} />
         {errorCode && (
-          <p className="text-[#DC143C] text-xs">{describeError(errorCode)}</p>
+          <p className="text-crimson text-xs">{describeError(errorCode)}</p>
         )}
         <button
           type="submit"
-          className="bg-[#FFD700] text-[#1B1B1F] font-semibold rounded-lg py-2 px-4 hover:bg-yellow-300 transition-colors text-sm"
+          className="bg-gold text-bg font-semibold rounded-lg py-2 px-4 hover:bg-gold-hover transition-colors text-sm"
         >
           send magic link
         </button>
@@ -123,11 +123,11 @@ async function InviteSurface({
   if (user.email?.toLowerCase() !== invite.email.toLowerCase()) {
     return (
       <StateCard>
-        <p className="text-white font-medium mb-1">wrong account</p>
-        <p className="text-[#6B7280] text-sm">
+        <p className="text-fg font-medium mb-1">wrong account</p>
+        <p className="text-muted-2 text-sm">
           this invite is for{' '}
-          <span className="text-[#FFD700]">{invite.email}</span>. you&rsquo;re signed in as{' '}
-          <span className="text-white">{user.email}</span>. sign out and try again.
+          <span className="text-gold">{invite.email}</span>. you&rsquo;re signed in as{' '}
+          <span className="text-fg">{user.email}</span>. sign out and try again.
         </p>
       </StateCard>
     )
@@ -135,10 +135,10 @@ async function InviteSurface({
 
   // Authed + matching email — show accept button
   return (
-    <form action={acceptInviteAction} className="bg-[#2C2C32] rounded-xl p-6 flex flex-col gap-4">
+    <form action={acceptInviteAction} className="bg-surface-2 rounded-xl p-6 flex flex-col gap-4">
       <div>
-        <p className="text-white font-medium mb-1">accept your invite</p>
-        <p className="text-[#6B7280] text-sm">
+        <p className="text-fg font-medium mb-1">accept your invite</p>
+        <p className="text-muted-2 text-sm">
           {invite.org_id
             ? `you'll be added as ${invite.intended_role}.`
             : `you'll create your own org and become the owner.`}
@@ -146,11 +146,11 @@ async function InviteSurface({
       </div>
       <input type="hidden" name="token" value={token} />
       {errorCode && (
-        <p className="text-[#DC143C] text-xs">{describeError(errorCode)}</p>
+        <p className="text-crimson text-xs">{describeError(errorCode)}</p>
       )}
       <button
         type="submit"
-        className="bg-[#FFD700] text-[#1B1B1F] font-semibold rounded-lg py-2 px-4 hover:bg-yellow-300 transition-colors text-sm"
+        className="bg-gold text-bg font-semibold rounded-lg py-2 px-4 hover:bg-gold-hover transition-colors text-sm"
       >
         {invite.org_id ? 'join' : 'set up my org'}
       </button>

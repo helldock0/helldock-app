@@ -137,6 +137,9 @@ function Section({
 }
 
 // Color a cell based on win% — crimson (low) → muted (50) → gold (high).
+// Hex literals here mirror the Tailwind tokens for inline style props:
+//   muted-2 = #6B7280, gold = #FFD700, crimson rgba = (220,20,60)
+// Keep in sync with tailwind.config.ts if those change.
 function heatColor(winPct: number | null): { bg: string; text: string } {
   if (winPct == null) return { bg: 'transparent', text: '#6B7280' }
   // Anchor at 50%. Below → crimson tint; above → gold tint.

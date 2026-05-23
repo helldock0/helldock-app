@@ -37,9 +37,9 @@ function fmtPct(n: number | null | undefined): string {
 }
 
 function deltaCell(value: number | null, opts: { invert?: boolean; unit?: string } = {}): JSX.Element {
-  if (value == null || !Number.isFinite(value)) return <span className="text-[#6B7280]">—</span>
+  if (value == null || !Number.isFinite(value)) return <span className="text-muted-2">—</span>
   const positive = opts.invert ? value < 0 : value > 0
-  const cls = value === 0 ? 'text-[#6B7280]' : positive ? 'text-green-400' : 'text-[#DC143C]'
+  const cls = value === 0 ? 'text-muted-2' : positive ? 'text-win-green' : 'text-crimson'
   const sign = value > 0 ? '+' : ''
   return <span className={cls}>{sign}{value.toFixed(2)}{opts.unit ?? ''}</span>
 }
@@ -99,11 +99,11 @@ export default async function PostScrimReportPage({
       <main className="p-8 max-w-6xl mx-auto">
         <Link
           href={`/app/matches/${params.matchId}`}
-          className="text-[#6B7280] text-sm hover:text-white transition-colors mb-4 inline-block"
+          className="text-muted-2 text-sm hover:text-fg transition-colors mb-4 inline-block"
         >
           ← back to match
         </Link>
-        <div className="bg-[#2C2C32] rounded-xl p-8 text-center">
+        <div className="bg-surface-2 rounded-xl p-8 text-center">
           <h1 className="text-2xl font-bold text-fg mb-2">No round-player data yet</h1>
           <p className="text-muted text-sm">
             This match was ingested before s26. Hit the <span className="font-mono">↻ rehydrate</span> button on the match detail page to backfill it.
@@ -122,23 +122,23 @@ export default async function PostScrimReportPage({
     <main className="p-8 max-w-6xl mx-auto">
       <Link
         href={`/app/matches/${params.matchId}`}
-        className="text-[#6B7280] text-sm hover:text-white transition-colors mb-4 inline-block"
+        className="text-muted-2 text-sm hover:text-fg transition-colors mb-4 inline-block"
       >
         ← back to match
       </Link>
 
       {/* Header card */}
-      <div className="bg-[#2C2C32] rounded-xl p-6 mb-6 flex items-start justify-between gap-4">
+      <div className="bg-surface-2 rounded-xl p-6 mb-6 flex items-start justify-between gap-4">
         <div>
           <p className="text-2xs uppercase tracking-[0.25em] text-muted-2 mb-2">post-scrim report</p>
           <div className="flex items-center gap-3 mb-1">
-            <span className="font-mono text-[#6B7280] text-sm">{match.match_id_helldock}</span>
+            <span className="font-mono text-muted-2 text-sm">{match.match_id_helldock}</span>
             {match.match_type && (
-              <span className="text-xs bg-[#3C3C44] text-[#6B7280] px-2 py-0.5 rounded">{match.match_type}</span>
+              <span className="text-xs bg-line-strong text-muted-2 px-2 py-0.5 rounded">{match.match_type}</span>
             )}
           </div>
-          <h1 className="text-3xl font-bold text-white mb-1">{match.map_name ?? 'Unknown Map'}</h1>
-          <p className="text-[#6B7280]">
+          <h1 className="text-3xl font-bold text-fg mb-1">{match.map_name ?? 'Unknown Map'}</h1>
+          <p className="text-muted-2">
             {match.opponent_name ?? 'Unknown Opp'}
             {match.match_date && <span className="ml-2">· {formatDate(match.match_date)}</span>}
           </p>
@@ -146,14 +146,14 @@ export default async function PostScrimReportPage({
         <div className="text-right shrink-0 flex flex-col items-end gap-1">
           <div
             className={`text-5xl font-bold tabular-nums ${
-              isWin ? 'text-[#FFD700]' : isLoss ? 'text-[#DC143C]' : 'text-white'
+              isWin ? 'text-gold' : isLoss ? 'text-crimson' : 'text-fg'
             }`}
           >
             {match.our_score != null && match.opp_score != null
               ? `${match.our_score}–${match.opp_score}`
               : '—'}
           </div>
-          <div className={`text-lg font-bold ${isWin ? 'text-[#FFD700]' : isLoss ? 'text-[#DC143C]' : 'text-[#6B7280]'}`}>
+          <div className={`text-lg font-bold ${isWin ? 'text-gold' : isLoss ? 'text-crimson' : 'text-muted-2'}`}>
             {match.result ?? '—'}
           </div>
         </div>
@@ -165,7 +165,7 @@ export default async function PostScrimReportPage({
         <p className="text-xs text-muted mb-3">
           Match-wide ability casts (C+Q+E+X). V4 doesn&rsquo;t expose per-round casts; deltas are vs this match&rsquo;s team avg.
         </p>
-        <div className="bg-[#2C2C32] rounded-xl overflow-hidden">
+        <div className="bg-surface-2 rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-2xs uppercase tracking-wider text-muted-2 border-b border-line">
@@ -181,7 +181,7 @@ export default async function PostScrimReportPage({
             </thead>
             <tbody>
               {byUtilEff.map((p) => (
-                <tr key={p.puuid} className="border-b border-line/30 hover:bg-[#3C3C44]/40">
+                <tr key={p.puuid} className="border-b border-line/30 hover:bg-surface-3">
                   <td className="py-2 px-4 font-medium text-fg">{p.name}</td>
                   <td className="py-2 px-3 text-right tabular-nums">{p.abilityCasts ?? '—'}</td>
                   <td className="py-2 px-3 text-right tabular-nums">{fmtNum(p.utilPerKill)}</td>
@@ -192,7 +192,7 @@ export default async function PostScrimReportPage({
                   <td className="py-2 px-3 text-right tabular-nums text-muted">{p.ultKillsProxy}</td>
                 </tr>
               ))}
-              <tr className="border-t border-line-strong bg-[#1B1B1F]/40">
+              <tr className="border-t border-line-strong bg-surface/40">
                 <td className="py-2 px-4 text-2xs uppercase tracking-wider text-muted-2">team avg</td>
                 <td className="py-2 px-3 text-right tabular-nums text-muted">{fmtNum(team.abilityCasts, 1)}</td>
                 <td className="py-2 px-3 text-right tabular-nums text-muted">{fmtNum(team.utilPerKill)}</td>
@@ -213,7 +213,7 @@ export default async function PostScrimReportPage({
         <p className="text-xs text-muted mb-3">
           Eco / Anti-Eco rounds only. Save% = % of those rounds the player survived (didn&rsquo;t die).
         </p>
-        <div className="bg-[#2C2C32] rounded-xl overflow-hidden">
+        <div className="bg-surface-2 rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-2xs uppercase tracking-wider text-muted-2 border-b border-line">
@@ -229,7 +229,7 @@ export default async function PostScrimReportPage({
             </thead>
             <tbody>
               {byEco.map((p) => (
-                <tr key={p.puuid} className="border-b border-line/30 hover:bg-[#3C3C44]/40">
+                <tr key={p.puuid} className="border-b border-line/30 hover:bg-surface-3">
                   <td className="py-2 px-4 font-medium text-fg">{p.name}</td>
                   <td className="py-2 px-3 text-right tabular-nums">{p.ecoRoundCount}</td>
                   <td className="py-2 px-3 text-right tabular-nums">{p.ecoSurvivedCount}</td>
@@ -240,7 +240,7 @@ export default async function PostScrimReportPage({
                   <td className="py-2 px-3 text-right tabular-nums">{p.avgEconSpent.toLocaleString()}</td>
                 </tr>
               ))}
-              <tr className="border-t border-line-strong bg-[#1B1B1F]/40">
+              <tr className="border-t border-line-strong bg-surface/40">
                 <td className="py-2 px-4 text-2xs uppercase tracking-wider text-muted-2">team avg</td>
                 <td colSpan={2} />
                 <td className="py-2 px-3 text-right tabular-nums text-muted">{fmtPct(team.ecoSavePct)}</td>
@@ -257,7 +257,7 @@ export default async function PostScrimReportPage({
         <p className="text-xs text-muted mb-3">
           Per-round avg + how many rounds each player led our team in damage.
         </p>
-        <div className="bg-[#2C2C32] rounded-xl overflow-hidden">
+        <div className="bg-surface-2 rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-2xs uppercase tracking-wider text-muted-2 border-b border-line">
@@ -270,7 +270,7 @@ export default async function PostScrimReportPage({
             </thead>
             <tbody>
               {byDmgDelta.map((p) => (
-                <tr key={p.puuid} className="border-b border-line/30 hover:bg-[#3C3C44]/40">
+                <tr key={p.puuid} className="border-b border-line/30 hover:bg-surface-3">
                   <td className="py-2 px-4 font-medium text-fg">{p.name}</td>
                   <td className="py-2 px-3 text-right tabular-nums">{fmtNum(p.avgDamagePerRound, 1)}</td>
                   <td className="py-2 px-3 text-right tabular-nums">{deltaCell(p.delta.avgDamagePerRound)}</td>
@@ -293,7 +293,7 @@ export default async function PostScrimReportPage({
                   </td>
                 </tr>
               ))}
-              <tr className="border-t border-line-strong bg-[#1B1B1F]/40">
+              <tr className="border-t border-line-strong bg-surface/40">
                 <td className="py-2 px-4 text-2xs uppercase tracking-wider text-muted-2">team avg</td>
                 <td className="py-2 px-3 text-right tabular-nums text-muted">{fmtNum(team.avgDamagePerRound, 1)}</td>
                 <td colSpan={3} />
@@ -309,7 +309,7 @@ export default async function PostScrimReportPage({
         <p className="text-xs text-muted mb-3">
           Top damage dealer on our side for each round.
         </p>
-        <div className="bg-[#2C2C32] rounded-xl overflow-hidden">
+        <div className="bg-surface-2 rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-2xs uppercase tracking-wider text-muted-2 border-b border-line">
@@ -329,13 +329,13 @@ export default async function PostScrimReportPage({
                 const win = rl.outcome === 'W'
                 const loss = rl.outcome === 'L'
                 return (
-                  <tr key={rl.round_num} className="border-b border-line/30 hover:bg-[#3C3C44]/40">
+                  <tr key={rl.round_num} className="border-b border-line/30 hover:bg-surface-3">
                     <td className="py-1.5 px-3 font-mono text-muted">{rl.round_num}</td>
                     <td className="py-1.5 px-3 text-2xs text-muted">{rl.round_type ?? '—'}</td>
                     <td className="py-1.5 px-3 text-center">
                       <span
                         className={`inline-block w-5 text-2xs font-bold ${
-                          win ? 'text-[#FFD700]' : loss ? 'text-[#DC143C]' : 'text-muted'
+                          win ? 'text-gold' : loss ? 'text-crimson' : 'text-muted'
                         }`}
                       >
                         {rl.outcome ?? '—'}

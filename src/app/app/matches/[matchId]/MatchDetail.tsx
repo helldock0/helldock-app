@@ -139,8 +139,8 @@ function RehydrateButton({
       title="Re-fetch this match from HenrikDev (populates plants, defuses, FK/FD, multikills, clutches)"
       className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
         state === 'error'
-          ? 'bg-[#DC143C] text-white'
-          : 'bg-[#3C3C44] text-[#6B7280] hover:text-[#FFD700] disabled:opacity-50'
+          ? 'bg-crimson text-fg'
+          : 'bg-line-strong text-muted-2 hover:text-gold disabled:opacity-50'
       }`}
     >
       {state === 'loading' ? 'fetching…' : state === 'error' ? 'failed' : '↻ rehydrate'}
@@ -179,15 +179,15 @@ function str(v: string): string | null { return v === '' ? null : v }
 function Field({ label, value, wide }: { label: string; value: React.ReactNode; wide?: boolean }) {
   return (
     <div className={wide ? 'col-span-2' : ''}>
-      <p className="text-[#6B7280] text-xs uppercase tracking-wide mb-0.5">{label}</p>
-      <p className="text-white text-sm">{value ?? '—'}</p>
+      <p className="text-muted-2 text-xs uppercase tracking-wide mb-0.5">{label}</p>
+      <p className="text-fg text-sm">{value ?? '—'}</p>
     </div>
   )
 }
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div className="bg-[#2C2C32] rounded-xl p-8 text-center text-[#6B7280] text-sm">
+    <div className="bg-surface-2 rounded-xl p-8 text-center text-muted-2 text-sm">
       no {label} logged yet
     </div>
   )
@@ -195,8 +195,8 @@ function EmptyState({ label }: { label: string }) {
 
 // ── Edit input primitives ──────────────────────────────────────────────────
 
-const iCls = 'bg-[#1B1B1F] border border-[#FFD700]/50 rounded px-2 py-1 text-white text-sm w-full focus:outline-none focus:border-[#FFD700] placeholder-[#6B7280]'
-const siCls = 'bg-[#1B1B1F] border border-[#FFD700]/40 rounded px-1 py-0.5 text-xs text-white w-full focus:outline-none focus:border-[#FFD700] min-w-0'
+const iCls = 'bg-surface border border-gold/50 rounded px-2 py-1 text-fg text-sm w-full focus:outline-none focus:border-gold placeholder:text-muted-2'
+const siCls = 'bg-surface border border-gold/40 rounded px-1 py-0.5 text-xs text-fg w-full focus:outline-none focus:border-gold min-w-0'
 
 function EI({ value, onChange, type = 'text', placeholder }: {
   value: string | number | null; onChange: (v: string) => void; type?: string; placeholder?: string
@@ -240,7 +240,7 @@ function SS({ value, onChange, opts }: {
 function EF({ label, wide, children }: { label: string; wide?: boolean; children: React.ReactNode }) {
   return (
     <div className={wide ? 'col-span-2' : ''}>
-      <p className="text-[#6B7280] text-xs uppercase tracking-wide mb-1">{label}</p>
+      <p className="text-muted-2 text-xs uppercase tracking-wide mb-1">{label}</p>
       {children}
     </div>
   )
@@ -261,7 +261,7 @@ function OverviewTab({ match, rounds, editMode, onMatchChange, roundWPs }: {
   const hasRoundOutcomes = rounds.some((r) => r.outcome === 'W' || r.outcome === 'L')
 
   const scoreCard = hasRoundOutcomes ? (
-    <div className="bg-[#2C2C32] rounded-xl p-6">
+    <div className="bg-surface-2 rounded-xl p-6">
       <div className="flex items-baseline justify-between mb-3">
         <h3 className="text-[0.7rem] font-bold uppercase tracking-[0.22em] text-fg/90">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-gold mr-2 align-middle" />
@@ -274,7 +274,7 @@ function OverviewTab({ match, rounds, editMode, onMatchChange, roundWPs }: {
   ) : null
 
   const wpCard = roundWPs.length >= 2 ? (
-    <div className="bg-[#2C2C32] rounded-xl p-6">
+    <div className="bg-surface-2 rounded-xl p-6">
       <div className="flex items-baseline justify-between mb-3">
         <h3 className="text-[0.7rem] font-bold uppercase tracking-[0.22em] text-fg/90">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-gold mr-2 align-middle" />
@@ -291,7 +291,7 @@ function OverviewTab({ match, rounds, editMode, onMatchChange, roundWPs }: {
   if (!editMode) {
     return (
       <div className="space-y-4">
-      <div className="bg-[#2C2C32] rounded-xl p-6">
+      <div className="bg-surface-2 rounded-xl p-6">
         <div className="grid grid-cols-2 gap-x-8 gap-y-4">
           <Field label="Match ID" value={match.match_id_helldock} />
           <Field label="Date" value={formatDate(match.match_date)} />
@@ -311,8 +311,8 @@ function OverviewTab({ match, rounds, editMode, onMatchChange, roundWPs }: {
           <Field label="Opp Agents" value={match.opp_agents?.join(', ') || null} wide />
           {match.vod_link && (
             <div className="col-span-2">
-              <p className="text-[#6B7280] text-xs uppercase tracking-wide mb-0.5">VOD</p>
-              <a href={match.vod_link} target="_blank" rel="noopener noreferrer" className="text-[#FFD700] text-sm hover:underline break-all">
+              <p className="text-muted-2 text-xs uppercase tracking-wide mb-0.5">VOD</p>
+              <a href={match.vod_link} target="_blank" rel="noopener noreferrer" className="text-gold text-sm hover:underline break-all">
                 {match.vod_link}
               </a>
             </div>
@@ -330,7 +330,7 @@ function OverviewTab({ match, rounds, editMode, onMatchChange, roundWPs }: {
 
   return (
     <div className="space-y-4">
-    <div className="bg-[#2C2C32] rounded-xl p-6">
+    <div className="bg-surface-2 rounded-xl p-6">
       <div className="grid grid-cols-2 gap-x-8 gap-y-4">
         <Field label="Match ID" value={match.match_id_helldock} />
         <EF label="Date">
@@ -437,11 +437,11 @@ function CoachGradeCell({
   onChange: (v: number | null) => void
 }) {
   if (!editMode) {
-    if (value == null) return <span className="text-[#6B7280]">—</span>
+    if (value == null) return <span className="text-muted-2">—</span>
     return (
       <span className="text-gold tnum" title={`${value}/5`}>
         {'★'.repeat(value)}
-        <span className="text-[#3C3C44]">{'★'.repeat(5 - value)}</span>
+        <span className="text-line-strong">{'★'.repeat(5 - value)}</span>
       </span>
     )
   }
@@ -455,7 +455,7 @@ function CoachGradeCell({
           className={`text-base leading-none transition-colors ${
             value != null && n <= value
               ? 'text-gold hover:text-gold-hover'
-              : 'text-[#3C3C44] hover:text-[#6B7280]'
+              : 'text-line-strong hover:text-muted-2'
           }`}
           title={`${n}/5${value === n ? ' (click to clear)' : ''}`}
           aria-label={`Grade ${n} of 5`}
@@ -483,7 +483,7 @@ function CoachTagsCell({
 
   if (!editMode) {
     if (value.length === 0)
-      return <span className="text-[#6B7280]">—</span>
+      return <span className="text-muted-2">—</span>
     return (
       <div className="flex flex-wrap gap-1">
         {value.map((t) => (
@@ -509,7 +509,7 @@ function CoachTagsCell({
             className={`text-2xs uppercase tracking-wider px-1.5 py-0.5 rounded border transition-colors ${
               active
                 ? 'bg-gold/15 text-gold border-gold/50'
-                : 'bg-transparent text-[#6B7280] border-[#3C3C44] hover:text-white hover:border-[#6B7280]'
+                : 'bg-transparent text-muted-2 border-line-strong hover:text-fg hover:border-muted-2'
             }`}
             title={active ? `Remove ${t}` : `Add ${t}`}
           >
@@ -547,7 +547,7 @@ function RoundsTab({ rounds, editMode, onRoundChange, roundWPs = [], flashRoundN
   return (
     <div className="space-y-4">
     {hasEcon && (
-      <div className="bg-[#2C2C32] rounded-xl p-6">
+      <div className="bg-surface-2 rounded-xl p-6">
         <div className="flex items-baseline justify-between mb-3">
           <h3 className="text-[0.7rem] font-bold uppercase tracking-[0.22em] text-fg/90">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-gold mr-2 align-middle" />
@@ -558,10 +558,10 @@ function RoundsTab({ rounds, editMode, onRoundChange, roundWPs = [], flashRoundN
         <EconomyCurveChart rounds={rounds} />
       </div>
     )}
-    <div className="bg-[#2C2C32] rounded-xl overflow-x-auto">
+    <div className="bg-surface-2 rounded-xl overflow-x-auto">
       <table className="w-full text-xs whitespace-nowrap">
         <thead>
-          <tr className="border-b border-[#3C3C44] text-[#6B7280] uppercase tracking-wide">
+          <tr className="border-b border-line-strong text-muted-2 uppercase tracking-wide">
             {['#', 'Half', 'Side', 'Type', 'Site', 'Our', 'Their', 'Out', 'WP', 'FB', 'FB Player', 'Planter', 'Defuser', 'Clutch', 'MVP', 'Note', 'Grade', 'Tags'].map(h => (
               <th key={h} className="text-left px-3 py-2 font-normal">{h}</th>
             ))}
@@ -574,9 +574,9 @@ function RoundsTab({ rounds, editMode, onRoundChange, roundWPs = [], flashRoundN
             <tr
               key={r.id}
               ref={isFlashed ? flashRowRef : undefined}
-              className={`${i % 2 === 0 ? 'bg-[#2C2C32]' : 'bg-[#28282E]'} hover:bg-[#35353C] ${isFlashed ? 'flash-gold' : ''}`}
+              className={`${i % 2 === 0 ? 'bg-surface-2' : 'bg-surface'} hover:bg-surface-3 ${isFlashed ? 'flash-gold' : ''}`}
             >
-              <td className="px-3 py-1.5 font-mono text-[#6B7280]">{r.round_num}</td>
+              <td className="px-3 py-1.5 font-mono text-muted-2">{r.round_num}</td>
               <td className="px-3 py-1.5">{fmt(r.half)}</td>
               <td className="px-3 py-1.5">{fmt(r.side)}</td>
               <td className="px-3 py-1.5">{fmt(r.round_type)}</td>
@@ -591,15 +591,15 @@ function RoundsTab({ rounds, editMode, onRoundChange, roundWPs = [], flashRoundN
                 {editMode
                   ? <SS value={r.outcome} onChange={v => onRoundChange(r.id, 'outcome', str(v))} opts={OUTCOME_OPTS} />
                   : r.outcome === 'W'
-                    ? <span className="text-green-400 font-bold">W</span>
+                    ? <span className="text-win-green font-bold">W</span>
                     : r.outcome === 'L'
-                    ? <span className="text-[#DC143C] font-bold">L</span>
+                    ? <span className="text-crimson font-bold">L</span>
                     : '—'}
               </td>
               <td className="px-3 py-1.5 w-16 font-mono">
                 {(() => {
                   const wp = wpByRound[r.round_num]
-                  if (wp == null) return <span className="text-[#3C3C44]">—</span>
+                  if (wp == null) return <span className="text-line-strong">—</span>
                   // Highlight "anti-strat" rounds: outcome surprised the model by >25pp.
                   const expected = wp >= 50 ? 'W' : 'L'
                   const surprise =
@@ -618,7 +618,7 @@ function RoundsTab({ rounds, editMode, onRoundChange, roundWPs = [], flashRoundN
                           ? 'text-win-green'
                           : wp <= 40
                           ? 'text-crimson'
-                          : 'text-[#6B7280]'
+                          : 'text-muted-2'
                       }
                       title={
                         surprise
@@ -656,7 +656,7 @@ function RoundsTab({ rounds, editMode, onRoundChange, roundWPs = [], flashRoundN
               <td className="px-3 py-1.5 w-32">
                 {editMode
                   ? <SI value={r.note} onChange={v => onRoundChange(r.id, 'note', str(v))} />
-                  : <span className="text-[#6B7280] truncate block max-w-[128px]">{fmt(r.note)}</span>}
+                  : <span className="text-muted-2 truncate block max-w-[128px]">{fmt(r.note)}</span>}
               </td>
               <td className="px-3 py-1.5 w-32">
                 <CoachGradeCell
@@ -741,7 +741,7 @@ function PlayerCell({
   }
 
   if (success) {
-    return <span className="text-xs text-green-400">{success}</span>
+    return <span className="text-xs text-win-green">{success}</span>
   }
 
   const primaryLabel = currentPlayerName ?? riotId
@@ -750,7 +750,7 @@ function PlayerCell({
   return (
     <div className="flex flex-col gap-0.5">
       <div className="flex items-center gap-1.5">
-        <span className={currentPlayerName ? 'text-[#FFD700]' : 'font-mono text-xs text-[#9CA3AF]'}>
+        <span className={currentPlayerName ? 'text-gold' : 'font-mono text-xs text-muted'}>
           {primaryLabel}
         </span>
         {canLink && (
@@ -807,7 +807,7 @@ function PlayerCell({
       {secondaryLabel && (
         <span className="font-mono text-2xs text-muted-2">{secondaryLabel}</span>
       )}
-      {msg && <span className="text-2xs text-[#DC143C]">{msg}</span>}
+      {msg && <span className="text-2xs text-crimson">{msg}</span>}
       {!canLink && !currentPlayerName && (
         <span className="text-2xs text-muted-2 italic">re-import to backfill</span>
       )}
@@ -826,10 +826,10 @@ function PlayersTab({ players, editMode, onPlayerChange, rosterOptions }: {
   if (players.length === 0) return <EmptyState label="player stats" />
 
   return (
-    <div className="bg-[#2C2C32] rounded-xl overflow-x-auto">
+    <div className="bg-surface-2 rounded-xl overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-[#3C3C44] text-[#6B7280] text-xs uppercase tracking-wide">
+          <tr className="border-b border-line-strong text-muted-2 text-xs uppercase tracking-wide">
             {['Player', 'Agent', 'Role', 'K', 'D', 'A', 'ACS', '+/-', 'Plants', 'Defuses', 'Rating', 'Notes'].map(h => (
               <th key={h} className="text-left px-4 py-3 font-normal">{h}</th>
             ))}
@@ -837,7 +837,7 @@ function PlayersTab({ players, editMode, onPlayerChange, rosterOptions }: {
         </thead>
         <tbody>
           {players.map((p, i) => (
-            <tr key={p.id} className={`${i !== players.length - 1 ? 'border-b border-[#3C3C44]' : ''} hover:bg-[#35353C]`}>
+            <tr key={p.id} className={`${i !== players.length - 1 ? 'border-b border-line-strong' : ''} hover:bg-surface-3`}>
               <td className="px-4 py-2 font-medium">
                 <PlayerCell
                   matchPlayerId={p.id}
@@ -852,7 +852,7 @@ function PlayersTab({ players, editMode, onPlayerChange, rosterOptions }: {
               <td className="px-4 py-2">
                 {editMode ? <SI value={p.agent} onChange={v => onPlayerChange(p.id, 'agent', str(v))} /> : fmt(p.agent)}
               </td>
-              <td className="px-4 py-2 text-[#6B7280]">
+              <td className="px-4 py-2 text-muted-2">
                 {editMode ? <SI value={p.role} onChange={v => onPlayerChange(p.id, 'role', str(v))} /> : fmt(p.role)}
               </td>
               <td className="px-4 py-2 font-mono w-16">
@@ -867,7 +867,7 @@ function PlayersTab({ players, editMode, onPlayerChange, rosterOptions }: {
               <td className="px-4 py-2 font-mono font-semibold w-16">
                 {editMode ? <SI type="number" value={p.acs} onChange={v => onPlayerChange(p.id, 'acs', num(v))} /> : fmt(p.acs)}
               </td>
-              <td className={`px-4 py-2 font-mono w-16 ${!editMode ? ((p.plus_minus ?? 0) >= 0 ? 'text-green-400' : 'text-[#DC143C]') : ''}`}>
+              <td className={`px-4 py-2 font-mono w-16 ${!editMode ? ((p.plus_minus ?? 0) >= 0 ? 'text-win-green' : 'text-crimson') : ''}`}>
                 {editMode
                   ? <SI type="number" value={p.plus_minus} onChange={v => onPlayerChange(p.id, 'plus_minus', num(v))} />
                   : p.plus_minus != null ? (p.plus_minus >= 0 ? `+${p.plus_minus}` : String(p.plus_minus)) : '—'}
@@ -881,7 +881,7 @@ function PlayersTab({ players, editMode, onPlayerChange, rosterOptions }: {
               <td className="px-4 py-2 font-mono w-16">
                 {editMode ? <SI type="number" value={p.rating} onChange={v => onPlayerChange(p.id, 'rating', num(v))} /> : fmt(p.rating)}
               </td>
-              <td className="px-4 py-2 text-[#6B7280] text-xs w-36">
+              <td className="px-4 py-2 text-muted-2 text-xs w-36">
                 {editMode
                   ? <SI value={p.notes} onChange={v => onPlayerChange(p.id, 'notes', str(v))} />
                   : <span className="truncate block max-w-[144px]">{fmt(p.notes)}</span>}
@@ -904,10 +904,10 @@ function OppPlayersTab({ players, editMode, onOppPlayerChange }: {
   if (players.length === 0) return <EmptyState label="opp player stats" />
 
   return (
-    <div className="bg-[#2C2C32] rounded-xl overflow-x-auto">
+    <div className="bg-surface-2 rounded-xl overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-[#3C3C44] text-[#6B7280] text-xs uppercase tracking-wide">
+          <tr className="border-b border-line-strong text-muted-2 text-xs uppercase tracking-wide">
             {['Player', 'Riot ID', 'Agent', 'K', 'D', 'A', 'ACS', 'FB', 'Plants', 'Defuses', 'Notes'].map(h => (
               <th key={h} className="text-left px-4 py-3 font-normal">{h}</th>
             ))}
@@ -915,11 +915,11 @@ function OppPlayersTab({ players, editMode, onOppPlayerChange }: {
         </thead>
         <tbody>
           {players.map((p, i) => (
-            <tr key={p.id} className={`${i !== players.length - 1 ? 'border-b border-[#3C3C44]' : ''} hover:bg-[#35353C]`}>
+            <tr key={p.id} className={`${i !== players.length - 1 ? 'border-b border-line-strong' : ''} hover:bg-surface-3`}>
               <td className="px-4 py-2 font-medium">
                 {editMode ? <SI value={p.opp_player_name} onChange={v => onOppPlayerChange(p.id, 'opp_player_name', str(v))} /> : fmt(p.opp_player_name)}
               </td>
-              <td className="px-4 py-2 font-mono text-xs text-[#6B7280]">
+              <td className="px-4 py-2 font-mono text-xs text-muted-2">
                 {editMode ? <SI value={p.riot_id_full} onChange={v => onOppPlayerChange(p.id, 'riot_id_full', str(v))} /> : fmt(p.riot_id_full)}
               </td>
               <td className="px-4 py-2">
@@ -946,7 +946,7 @@ function OppPlayersTab({ players, editMode, onOppPlayerChange }: {
               <td className="px-4 py-2 font-mono w-16">
                 {editMode ? <SI type="number" value={p.defuses} onChange={v => onOppPlayerChange(p.id, 'defuses', num(v))} /> : fmt(p.defuses)}
               </td>
-              <td className="px-4 py-2 text-[#6B7280] text-xs w-36">
+              <td className="px-4 py-2 text-muted-2 text-xs w-36">
                 {editMode
                   ? <SI value={p.notes} onChange={v => onOppPlayerChange(p.id, 'notes', str(v))} />
                   : <span className="truncate block max-w-[144px]">{fmt(p.notes)}</span>}
@@ -1144,23 +1144,23 @@ export default function MatchDetail({
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
-      <Link href="/app/matches" className="text-[#6B7280] text-sm hover:text-white transition-colors mb-4 inline-block">
+      <Link href="/app/matches" className="text-muted-2 text-sm hover:text-fg transition-colors mb-4 inline-block">
         ← match log
       </Link>
 
       {/* Header card */}
-      <div className="bg-[#2C2C32] rounded-xl p-6 mb-6 flex items-start justify-between gap-4">
+      <div className="bg-surface-2 rounded-xl p-6 mb-6 flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <span className="font-mono text-[#6B7280] text-sm">{localMatch.match_id_helldock}</span>
+            <span className="font-mono text-muted-2 text-sm">{localMatch.match_id_helldock}</span>
             {localMatch.is_manual_entry && (
-              <span className="text-xs bg-[#3C3C44] text-[#6B7280] px-2 py-0.5 rounded">manual</span>
+              <span className="text-xs bg-line-strong text-muted-2 px-2 py-0.5 rounded">manual</span>
             )}
           </div>
-          <h1 className="text-3xl font-bold text-white mb-1">
+          <h1 className="text-3xl font-bold text-fg mb-1">
             {localMatch.map_name ?? 'Unknown Map'}
           </h1>
-          <p className="text-[#6B7280]">
+          <p className="text-muted-2">
             {localMatch.opponent_name ? (
               <Link
                 href={`/app/opponents/${encodeURIComponent(localMatch.opponent_name)}`}
@@ -1179,12 +1179,12 @@ export default function MatchDetail({
 
         <div className="text-right shrink-0 flex flex-col items-end gap-2">
           <div className="flex items-center gap-2">
-            {saveStatus === 'saving' && <span className="text-xs text-[#6B7280]">saving…</span>}
-            {saveStatus === 'saved' && <span className="text-xs text-green-400">saved</span>}
-            {saveStatus === 'error' && <span className="text-xs text-[#DC143C]">error saving</span>}
+            {saveStatus === 'saving' && <span className="text-xs text-muted-2">saving…</span>}
+            {saveStatus === 'saved' && <span className="text-xs text-win-green">saved</span>}
+            {saveStatus === 'error' && <span className="text-xs text-crimson">error saving</span>}
             <Link
               href={`/app/matches/${localMatch.match_id_helldock}/report`}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium bg-[#3C3C44] text-[#6B7280] hover:text-white transition-colors"
+              className="text-xs px-3 py-1.5 rounded-lg font-medium bg-line-strong text-muted-2 hover:text-fg transition-colors"
               title="Post-scrim report"
             >
               report
@@ -1199,22 +1199,22 @@ export default function MatchDetail({
               onClick={() => setEditMode(e => !e)}
               className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
                 editMode
-                  ? 'bg-[#FFD700] text-[#1B1B1F]'
-                  : 'bg-[#3C3C44] text-[#6B7280] hover:text-white'
+                  ? 'bg-gold text-black'
+                  : 'bg-line-strong text-muted-2 hover:text-fg'
               }`}
             >
               {editMode ? 'editing' : 'edit'}
             </button>
           </div>
           <div className={`text-5xl font-bold tabular-nums ${
-            isWin ? 'text-[#FFD700]' : isLoss ? 'text-[#DC143C]' : 'text-white'
+            isWin ? 'text-gold' : isLoss ? 'text-crimson' : 'text-fg'
           }`}>
             {localMatch.our_score != null && localMatch.opp_score != null
               ? `${localMatch.our_score}–${localMatch.opp_score}`
               : '—'}
           </div>
           <div className={`text-lg font-bold ${
-            isWin ? 'text-[#FFD700]' : isLoss ? 'text-[#DC143C]' : 'text-[#6B7280]'
+            isWin ? 'text-gold' : isLoss ? 'text-crimson' : 'text-muted-2'
           }`}>
             {localMatch.result ?? '—'}
           </div>
@@ -1222,13 +1222,13 @@ export default function MatchDetail({
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 bg-[#2C2C32] rounded-lg p-1 w-fit">
+      <div className="flex gap-1 mb-4 bg-surface-2 rounded-lg p-1 w-fit">
         {TABS.map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              tab === t ? 'bg-[#FFD700] text-[#1B1B1F]' : 'text-[#6B7280] hover:text-white'
+              tab === t ? 'bg-gold text-black' : 'text-muted-2 hover:text-fg'
             }`}
           >
             {t}
@@ -1296,7 +1296,7 @@ function ReviewTab({
 }) {
   if (items.length === 0) {
     return (
-      <div className="bg-[#2C2C32] rounded-xl p-8 text-center text-[#6B7280] text-sm">
+      <div className="bg-surface-2 rounded-xl p-8 text-center text-muted-2 text-sm">
         no rounds flagged for review — nothing here looks anomalous
       </div>
     )
@@ -1318,7 +1318,7 @@ function ReviewTab({
         <span className="text-2xs text-muted-2 uppercase tracking-wider">
           top {items.length} round{items.length === 1 ? '' : 's'} worth a look
           {lowConfidenceWP && (
-            <span className="ml-2 text-[#FFD700] opacity-80 normal-case tracking-normal">
+            <span className="ml-2 text-gold opacity-80 normal-case tracking-normal">
               · (low-confidence WP, {wpTrainSize} rounds trained)
             </span>
           )}
