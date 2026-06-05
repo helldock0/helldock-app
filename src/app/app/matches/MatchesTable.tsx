@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { cleanOpponentName } from '@/lib/opponent-name'
 
 type Match = {
   id: string
@@ -89,7 +90,9 @@ export default function MatchesTable({ matches }: { matches: Match[] }) {
                   </td>
                   <td className="px-4 py-3 text-muted tnum">{formatDate(match.match_date)}</td>
                   <td className="px-4 py-3 text-fg">{match.match_type ?? '—'}</td>
-                  <td className="px-4 py-3 text-fg font-medium">{match.opponent_name ?? '—'}</td>
+                  <td className="px-4 py-3 text-fg font-medium">
+                    {cleanOpponentName(match.opponent_name) ?? '—'}
+                  </td>
                   <td className="px-4 py-3 text-fg">{match.map_name ?? '—'}</td>
                   <td className="px-4 py-3 text-center font-mono tnum">
                     {match.our_score != null && match.opp_score != null

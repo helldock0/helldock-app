@@ -257,6 +257,24 @@ export default function ImportClient({
       <div className="mb-6">
         <p className="text-2xs uppercase tracking-[0.25em] text-muted-2">data sync</p>
         <h1 className="text-2xl font-bold text-fg leading-tight mt-1">Import matches</h1>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-2xs uppercase tracking-[0.16em] text-muted-2">
+          <span className="rounded-md border border-line-strong/60 bg-surface-2 px-2.5 py-1">
+            Henrik V4
+          </span>
+          <span className="rounded-md border border-line-strong/60 bg-surface-2 px-2.5 py-1 tnum">
+            {rehydratableMatches.length} linked
+          </span>
+          {fetchedAt && (
+            <span className="rounded-md border border-line-strong/60 bg-surface-2 px-2.5 py-1">
+              last fetch {formatAge(fetchedAt)}
+            </span>
+          )}
+          {saveResult && (
+            <span className="text-win-green">
+              last import {saveResult.saved} saved
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Controls */}

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { localDateKey, timeOfDay } from '@/lib/calendar'
+import { cleanOpponentName, formatOpponentName } from '@/lib/opponent-name'
 import ScrimFormModal from './ScrimFormModal'
 
 export type CalendarEvent =
@@ -124,12 +125,12 @@ export default function CalendarGrid({
                           ? 'border-crimson/40 bg-crimson/10 text-crimson'
                           : 'border-line text-muted'
                       }`}
-                      title={`${e.result ?? '—'} · ${e.map ?? '—'} vs ${e.opp ?? '—'} · ${
+                      title={`${e.result ?? '—'} · ${e.map ?? '—'} ${formatOpponentName(e.opp)} · ${
                         e.ourScore ?? '—'
                       }-${e.oppScore ?? '—'}`}
                     >
                       <span className="font-bold mr-1">{e.result ?? '·'}</span>
-                      {e.opp ?? e.map ?? e.matchIdHelldock}
+                      {cleanOpponentName(e.opp) ?? e.map ?? e.matchIdHelldock}
                     </Link>
                   ) : (
                     <button
@@ -150,7 +151,7 @@ export default function CalendarGrid({
                       <span className="font-mono mr-1">
                         {timeOfDay(e.scheduledAt)}
                       </span>
-                      {e.opp ?? 'TBD'}
+                      {cleanOpponentName(e.opp) ?? 'TBD'}
                     </button>
                   )
                 )}

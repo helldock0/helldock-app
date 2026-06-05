@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import type { PlayerStat } from '@/lib/analytics'
 import RatingTrendChart from '@/components/charts/RatingTrendChart'
+import { formatOpponentName } from '@/lib/opponent-name'
 
 const EXPAND_HINT_KEY = 'helldock.playersTab.expandHintDismissed'
 
@@ -641,7 +642,7 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
                                   · WP {m.wpPctBefore}%
                                 </div>
                                 <div className="text-2xs text-muted truncate">
-                                  vs {m.opponent ?? '—'}
+                                  {formatOpponentName(m.opponent)}
                                 </div>
                               </Link>
                             ))}

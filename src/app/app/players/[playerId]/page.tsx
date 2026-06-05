@@ -24,6 +24,7 @@ import {
   computeInternalPlayerDossier,
   fetchFocalKillEvents,
 } from '@/lib/dossier/internal-player'
+import { formatOpponentName } from '@/lib/opponent-name'
 import IgnAvatar from '@/components/pro-scout/player/IgnAvatar'
 import RadarPizzaChart from '@/components/pro-scout/player/RadarPizzaChart'
 import TopPercentilesList from '@/components/pro-scout/player/TopPercentilesList'
@@ -542,7 +543,7 @@ export default async function PlayerProfilePage({
               <span className="text-fg flex-1 truncate">
                 {h.map ?? '—'}
                 {h.opp && (
-                  <span className="text-muted-2 ml-2">vs {h.opp}</span>
+                  <span className="text-muted-2 ml-2">{formatOpponentName(h.opp)}</span>
                 )}
                 {h.agent && (
                   <span className="text-2xs uppercase tracking-wider text-muted-2 ml-2">

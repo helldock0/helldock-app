@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { SearchResponse } from '@/app/api/search/route'
+import { cleanOpponentName, formatOpponentName } from '@/lib/opponent-name'
 
 const DEBOUNCE_MS = 200
 
@@ -174,7 +175,9 @@ export default function GlobalSearch() {
                       <span className="text-fg flex-1 truncate">
                         {m.map ?? '—'}
                         {m.opp && (
-                          <span className="text-muted-2 ml-1.5">vs {m.opp}</span>
+                          <span className="text-muted-2 ml-1.5">
+                            {formatOpponentName(m.opp)}
+                          </span>
                         )}
                       </span>
                       <span className="font-mono tnum text-fg w-12 text-right shrink-0">
@@ -225,7 +228,9 @@ export default function GlobalSearch() {
                       onClick={close}
                       className="w-full block px-3 py-1.5 hover:bg-surface-3 transition-colors flex items-center justify-between gap-2 text-xs"
                     >
-                      <span className="text-fg truncate">{o.name}</span>
+                      <span className="text-fg truncate">
+                        {cleanOpponentName(o.name) ?? o.name}
+                      </span>
                       <span className="text-2xs text-muted-2 tnum shrink-0">
                         {o.games} match{o.games !== 1 ? 'es' : ''}
                       </span>

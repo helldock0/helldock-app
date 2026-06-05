@@ -14,6 +14,7 @@ import {
   type TeamAverages,
   type RoundDamageLeader,
 } from '@/lib/efficiency'
+import { cleanOpponentName } from '@/lib/opponent-name'
 
 export const dynamic = 'force-dynamic'
 
@@ -139,7 +140,7 @@ export default async function PostScrimReportPage({
           </div>
           <h1 className="text-3xl font-bold text-fg mb-1">{match.map_name ?? 'Unknown Map'}</h1>
           <p className="text-muted-2">
-            {match.opponent_name ?? 'Unknown Opp'}
+            {cleanOpponentName(match.opponent_name) ?? 'Unknown Opp'}
             {match.match_date && <span className="ml-2">· {formatDate(match.match_date)}</span>}
           </p>
         </div>

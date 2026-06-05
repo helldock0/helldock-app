@@ -26,6 +26,7 @@ import type {
   WeeklyRetro,
 } from '@/lib/trends'
 import type { LeverageMoment } from '@/lib/role-impact'
+import { formatOpponentName } from '@/lib/opponent-name'
 
 // Stable per-player color (deterministic hash → CSS HSL)
 function colorForPlayer(name: string): string {
@@ -207,7 +208,7 @@ export default function TrendsClient({
               <h2 className="text-xl font-bold text-fg leading-tight">
                 {highestLeverageMoment.name} ·{' '}
                 <span className="text-gold">{highestLeverageMoment.kind}</span>{' '}
-                vs {highestLeverageMoment.opponent ?? '—'}
+                {formatOpponentName(highestLeverageMoment.opponent)}
               </h2>
               <p className="text-xs text-muted mt-1">
                 <Link

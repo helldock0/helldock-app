@@ -7,6 +7,7 @@ import {
   pct,
 } from './dashboard'
 import { MAPS, AGENT_TO_ROLE, type Map as ValMap, type Role } from './valorant'
+import { formatOpponentName } from './opponent-name'
 
 // ── Shared classifiers ──────────────────────────────────────────────────────
 
@@ -492,7 +493,7 @@ export function computePlayerStats(
       if (date) {
         const parts: string[] = []
         if (mapName) parts.push(mapName)
-        if (opp) parts.push(`vs ${opp}`)
+        if (opp) parts.push(formatOpponentName(opp))
         if (result) parts.push(result)
         a.ratingHistory.push({
           date,

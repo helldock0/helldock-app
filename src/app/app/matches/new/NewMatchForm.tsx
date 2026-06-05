@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { MAPS, AGENTS, MATCH_TYPES, PICKS, SIDES } from '@/lib/valorant'
+import { cleanOpponentName } from '@/lib/opponent-name'
 
 type Player = { id: string; display_name: string; team_id: string }
 
@@ -81,7 +82,7 @@ export default function NewMatchForm({
       team_slug: lockedTeamSlug,
       match_date: matchDate,
       match_type: matchType,
-      opponent_name: opponentName.trim(),
+      opponent_name: cleanOpponentName(opponentName) ?? opponentName.trim(),
       map_name: mapName,
       pick,
       start_side: startSide,

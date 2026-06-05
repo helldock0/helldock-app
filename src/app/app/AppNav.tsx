@@ -11,19 +11,90 @@ type NavCapabilities = {
   isPlatformAdmin: boolean
 }
 
-const LINKS = [
-  { href: '/app', label: 'Home', match: (p: string) => p === '/app', minRole: 'player' as const },
-  { href: '/app/me', label: 'My stats', match: (p: string) => p.startsWith('/app/me'), minRole: 'player' as const },
-  { href: '/app/matches', label: 'Matches', match: (p: string) => p.startsWith('/app/matches') && p !== '/app/matches/new', minRole: 'player' as const },
-  { href: '/app/calendar', label: 'Calendar', match: (p: string) => p.startsWith('/app/calendar'), minRole: 'player' as const },
-  { href: '/app/analytics', label: 'Analytics', match: (p: string) => p.startsWith('/app/analytics'), minRole: 'player' as const },
-  { href: '/app/trends', label: 'Trends', match: (p: string) => p.startsWith('/app/trends'), minRole: 'player' as const },
-  { href: '/app/import', label: 'Import', match: (p: string) => p.startsWith('/app/import'), minRole: 'coach' as const },
-  { href: '/app/roster', label: 'Roster', match: (p: string) => p.startsWith('/app/roster'), minRole: 'analyst' as const },
-  { href: '/app/team/members', label: 'Members', match: (p: string) => p.startsWith('/app/team/members'), minRole: 'org_admin' as const },
-] as const
-
 type LinkMinRole = 'player' | 'analyst' | 'coach' | 'org_admin'
+
+type NavLink = {
+  href: string
+  label: string
+  match: (p: string) => boolean
+  minRole: LinkMinRole
+}
+
+const NAV_GROUPS: Array<{ label: string; links: NavLink[] }> = [
+  {
+    label: 'Command',
+    links: [
+      { href: '/app', label: 'Home', match: (p) => p === '/app', minRole: 'player' },
+      {
+        href: '/app/matches',
+        label: 'Matches',
+        match: (p) => p.startsWith('/app/matches') && p !== '/app/matches/new',
+        minRole: 'player',
+      },
+      {
+        href: '/app/calendar',
+        label: 'Calendar',
+        match: (p) => p.startsWith('/app/calendar'),
+        minRole: 'player',
+      },
+    ],
+  },
+  {
+    label: 'Analysis',
+    links: [
+      {
+        href: '/app/analytics',
+        label: 'Analytics',
+        match: (p) => p.startsWith('/app/analytics'),
+        minRole: 'player',
+      },
+      {
+        href: '/app/trends',
+        label: 'Trends',
+        match: (p) => p.startsWith('/app/trends'),
+        minRole: 'player',
+      },
+      {
+        href: '/app/prep',
+        label: 'Prep',
+        match: (p) => p.startsWith('/app/prep') || p.startsWith('/app/opponents'),
+        minRole: 'player',
+      },
+    ],
+  },
+  {
+    label: 'Team',
+    links: [
+      {
+        href: '/app/me',
+        label: 'My stats',
+        match: (p) => p.startsWith('/app/me'),
+        minRole: 'player',
+      },
+      {
+        href: '/app/roster',
+        label: 'Roster',
+        match: (p) => p.startsWith('/app/roster'),
+        minRole: 'analyst',
+      },
+      {
+        href: '/app/team/members',
+        label: 'Members',
+        match: (p) => p.startsWith('/app/team/members'),
+        minRole: 'org_admin',
+      },
+    ],
+  },
+]
+
+const OPS_LINKS: NavLink[] = [
+  {
+    href: '/app/import',
+    label: 'Import',
+    match: (p) => p.startsWith('/app/import'),
+    minRole: 'coach',
+  },
+]
 
 function canSee(linkMinRole: LinkMinRole, caps: NavCapabilities): boolean {
   if (linkMinRole === 'player') return true
@@ -41,12 +112,46 @@ export default function AppNav({
 }) {
   const pathname = usePathname() ?? '/'
   const router = useRouter()
+  const visibleGroups = NAV_GROUPS.map((group) => ({
+    ...group,
+    links: group.links.filter((link) => canSee(link.minRole, capabilities)),
+  })).filter((group) => group.links.length > 0)
+  const visibleOpsLinks = OPS_LINKS.filter((link) => canSee(link.minRole, capabilities))
+  const mobileLinks = visibleGroups.flatMap((group) => group.links).concat(visibleOpsLinks)
 
   if (pathname === '/app/select-team') return null
 
+  function renderNavLink(link: NavLink, variant: 'desktop' | 'mobile' = 'desktop') {
+    const active = link.match(pathname)
+    const base =
+      variant === 'desktop'
+        ? 'relative px-2.5 py-1.5 text-sm rounded-md transition-colors'
+        : 'px-2.5 py-1.5 text-sm rounded-md transition-colors'
+    const colors =
+      active
+        ? variant === 'desktop'
+          ? 'text-gold'
+          : 'text-gold bg-gold/10'
+        : 'text-muted hover:text-fg'
+
+    return (
+      <Link
+        key={link.href}
+        href={link.href}
+        aria-current={active ? 'page' : undefined}
+        className={`${base} ${colors}`}
+      >
+        {link.label}
+        {active && variant === 'desktop' && (
+          <span className="absolute -bottom-[15px] left-2 right-2 h-[2px] bg-gold rounded-t-full" />
+        )}
+      </Link>
+    )
+  }
+
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-surface/85 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-6 min-h-14 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link href="/app" className="flex items-baseline gap-2 group">
             <span className="text-gold font-bold tracking-[0.18em] text-sm group-hover:text-gold-hover transition-colors">
@@ -92,29 +197,22 @@ export default function AppNav({
           <GlobalSearch />
         </div>
 
-        <nav className="flex items-center gap-1 whitespace-nowrap">
-          {LINKS.filter((l) => canSee(l.minRole, capabilities)).map((link) => {
-            const active = link.match(pathname)
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                aria-current={active ? 'page' : undefined}
-                className={`
-                  relative px-3 py-1.5 text-sm rounded-md transition-colors
-                  ${active ? 'text-gold' : 'text-muted hover:text-fg'}
-                `}
-              >
-                {link.label}
-                {active && (
-                  <span className="absolute -bottom-[15px] left-2 right-2 h-[2px] bg-gold rounded-t-full" />
-                )}
-              </Link>
-            )
-          })}
+        <nav className="hidden lg:flex items-center gap-2 whitespace-nowrap">
+          {visibleGroups.map((group, index) => (
+            <div
+              key={group.label}
+              className={`flex items-center gap-1 ${index === 0 ? '' : 'pl-2 border-l border-line'}`}
+            >
+              <span className="hidden 2xl:inline text-2xs uppercase tracking-[0.16em] text-muted-2 px-1">
+                {group.label}
+              </span>
+              {group.links.map((link) => renderNavLink(link))}
+            </div>
+          ))}
 
           {/* Trailing cluster — visually separated from primary nav */}
           <div className="flex items-center gap-1 ml-3 pl-3 border-l border-line">
+            {visibleOpsLinks.map((link) => renderNavLink(link))}
             {capabilities.canEdit && (
               <Link
                 href="/app/matches/new"
@@ -164,6 +262,44 @@ export default function AppNav({
             </Link>
           )}
           </div>
+        </nav>
+      </div>
+
+      <div className="lg:hidden border-t border-line/70 px-3 py-2 overflow-x-auto">
+        <nav className="flex items-center gap-1 min-w-max whitespace-nowrap">
+          {mobileLinks.map((link) => renderNavLink(link, 'mobile'))}
+          {capabilities.canEdit && (
+            <Link
+              href="/app/matches/new"
+              className="px-2.5 py-1.5 bg-gold text-black font-semibold rounded-md text-sm hover:bg-gold-hover transition-colors"
+            >
+              + New
+            </Link>
+          )}
+          {capabilities.isPlatformAdmin && (
+            <Link
+              href="/admin"
+              className={`px-2.5 py-1.5 text-sm rounded-md border transition-colors ${
+                pathname.startsWith('/admin')
+                  ? 'border-gold text-gold'
+                  : 'border-gold/40 text-gold/80 hover:border-gold hover:text-gold'
+              }`}
+            >
+              Admin
+            </Link>
+          )}
+          {capabilities.canEdit && (
+            <Link
+              href="/app/settings"
+              className={`px-2.5 py-1.5 text-sm rounded-md transition-colors ${
+                pathname.startsWith('/app/settings')
+                  ? 'text-gold bg-gold/10'
+                  : 'text-muted hover:text-fg'
+              }`}
+            >
+              Settings
+            </Link>
+          )}
         </nav>
       </div>
     </header>

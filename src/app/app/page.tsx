@@ -23,6 +23,7 @@ import {
   trainWinProbability,
   type WPRound,
 } from '@/lib/win-probability'
+import { formatOpponentName } from '@/lib/opponent-name'
 
 export const dynamic = 'force-dynamic'
 
@@ -131,7 +132,7 @@ function ReviewQueueRow({ item }: { item: DashboardReviewItem }) {
             {item.matchIdHelldock} · R{item.roundNum}
           </div>
           <div className="text-xs text-muted truncate">
-            {item.mapName ?? '—'} {item.opponentName ? `· ${item.opponentName}` : ''}
+            {item.mapName ?? '—'} {item.opponentName ? `· ${formatOpponentName(item.opponentName)}` : ''}
           </div>
         </div>
         {/* Side + outcome chips */}

@@ -1,3 +1,5 @@
+import { cleanOpponentName, formatOpponentName } from './opponent-name'
+
 export type DashMatch = {
   id: string
   match_id_helldock: string
@@ -100,7 +102,7 @@ export function computePulse(matches: DashMatch[]) {
   const last = sortedDesc[0] ?? null
   const lastMap = last
     ? {
-        text: `${last.our_score ?? 0}-${last.opp_score ?? 0} ${last.result ?? '—'} vs ${last.opponent_name ?? '—'}`,
+        text: `${last.our_score ?? 0}-${last.opp_score ?? 0} ${last.result ?? '—'} ${formatOpponentName(last.opponent_name)}`,
         matchId: last.match_id_helldock,
         mapName: last.map_name,
       }
@@ -233,11 +235,12 @@ export function computeOppIntel(matches: DashMatch[]) {
   const byOpp: Record<string, { wins: number; losses: number; total: number }> = {}
   for (const m of matches) {
     if (!m.opponent_name) continue
-    const cur = byOpp[m.opponent_name] ?? { wins: 0, losses: 0, total: 0 }
+    const name = cleanOpponentName(m.opponent_name) ?? m.opponent_name
+    const cur = byOpp[name] ?? { wins: 0, losses: 0, total: 0 }
     cur.total++
     if (m.result === 'W') cur.wins++
     else if (m.result === 'L') cur.losses++
-    byOpp[m.opponent_name] = cur
+    byOpp[name] = cur
   }
   return Object.keys(byOpp)
     .map((name) => ({ name, ...byOpp[name] }))

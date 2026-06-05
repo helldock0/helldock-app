@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import type { OpponentDossier } from '@/lib/opponent-dossier'
 import type { LastScrimAudit } from './page'
+import { cleanOpponentName, formatOpponentName } from '@/lib/opponent-name'
 
 const SAMPLE_THRESHOLD = 2 // need ≥2 matches on a map before recommending it confidently
 
@@ -49,7 +50,7 @@ function buildMarkdown(dossier: OpponentDossier, audit: LastScrimAudit | null): 
 
   if (audit && audit.findings.length > 0) {
     lines.push(
-      `## Last scrim audit · ${audit.matchIdHelldock} (${audit.mapName ?? '—'} vs ${audit.oppName ?? '—'} · ${audit.ourScore ?? '?'}–${audit.oppScore ?? '?'} ${audit.result ?? '—'})`
+      `## Last scrim audit · ${audit.matchIdHelldock} (${audit.mapName ?? '—'} ${formatOpponentName(audit.oppName)} · ${audit.ourScore ?? '?'}–${audit.oppScore ?? '?'} ${audit.result ?? '—'})`
     )
     for (const f of audit.findings) {
       const tag = f.kind === 'over' ? '⚠️' : '✅'
@@ -246,7 +247,7 @@ export default function PrepClient({
             prep checklist
           </p>
           <h1 className="text-3xl font-bold text-fg leading-tight">
-            vs {dossier.name}
+            vs {cleanOpponentName(dossier.name) ?? dossier.name}
           </h1>
         </div>
         <button
@@ -277,7 +278,7 @@ export default function PrepClient({
                 <span className="mx-1.5 text-muted-2/60">·</span>
                 <span>{audit.mapName ?? '—'}</span>
                 <span className="mx-1.5 text-muted-2/60">·</span>
-                <span>vs {audit.oppName ?? '—'}</span>
+                <span>{formatOpponentName(audit.oppName)}</span>
               </p>
             </div>
             <div

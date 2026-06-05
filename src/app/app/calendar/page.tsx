@@ -84,6 +84,8 @@ export default async function CalendarPage({
     })
   }
   events.sort((a, b) => a.sortTs - b.sortTs)
+  const matchCount = events.filter((event) => event.kind === 'match').length
+  const scrimCount = events.filter((event) => event.kind === 'scrim').length
 
   const days = buildMonthDays(ym)
   const prevYm = shiftMonth(ym, -1)
@@ -120,6 +122,18 @@ export default async function CalendarPage({
             {monthName(nextYm).split(' ')[0]} →
           </Link>
         </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2 text-2xs uppercase tracking-[0.16em] text-muted-2">
+        <span className="rounded-md border border-line-strong/60 bg-surface-2 px-2.5 py-1 tnum">
+          {matchCount} match{matchCount === 1 ? '' : 'es'}
+        </span>
+        <span className="rounded-md border border-line-strong/60 bg-surface-2 px-2.5 py-1 tnum">
+          {scrimCount} scheduled
+        </span>
+        {scrimCount === 0 && (
+          <span className="text-muted">No scrims scheduled this month</span>
+        )}
       </div>
 
       <CalendarGrid days={days} events={events} activeMonth={ym.month} />

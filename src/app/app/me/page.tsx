@@ -1,6 +1,8 @@
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { requireSelectedTeam } from '@/lib/team-session'
 import { getCurrentUserContext } from '@/lib/authz'
+import { cleanOpponentName } from '@/lib/opponent-name'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +37,17 @@ export default async function MePage() {
     .flatMap((o) => o.teams)
     .find((t) => t.teamId === teamId)
   const playerId = myTeam?.playerId ?? null
+  const selectedOrg = ctx.memberships.find((o) => o.teams.some((t) => t.teamId === teamId))
+  const canOpenRoster =
+    ctx.isPlatformAdmin ||
+    myTeam?.teamRole === 'coach' ||
+    myTeam?.teamRole === 'analyst' ||
+    selectedOrg?.orgRole === 'org_admin' ||
+    selectedOrg?.orgRole === 'org_owner'
+  const canOpenMembers =
+    ctx.isPlatformAdmin ||
+    selectedOrg?.orgRole === 'org_admin' ||
+    selectedOrg?.orgRole === 'org_owner'
 
   if (!playerId) {
     return (
@@ -45,10 +58,31 @@ export default async function MePage() {
         </p>
         <div className="rounded-2xl border border-line-strong/40 bg-surface-2 p-8 text-center">
           <p className="text-fg mb-2">No player profile linked to your account.</p>
-          <p className="text-muted text-sm">
-            Ask your coach to link your roster row to your account so your match
-            stats show up here.
+          <p className="text-muted text-sm max-w-md mx-auto">
+            {canOpenRoster || canOpenMembers
+              ? 'Link this email to a roster player from Members, or confirm the player exists in Roster.'
+              : 'Ask a coach or org admin to link your account to the matching roster player.'}
           </p>
+          {(canOpenMembers || canOpenRoster) && (
+            <div className="mt-6 flex items-center justify-center gap-3">
+              {canOpenMembers && (
+                <Link
+                  href="/app/team/members"
+                  className="px-4 py-2 bg-gold text-black font-semibold rounded-lg text-sm hover:bg-gold-hover transition-colors"
+                >
+                  Open members
+                </Link>
+              )}
+              {canOpenRoster && (
+                <Link
+                  href="/app/roster"
+                  className="px-4 py-2 border border-line-strong text-fg font-semibold rounded-lg text-sm hover:border-gold transition-colors"
+                >
+                  Open roster
+                </Link>
+              )}
+            </div>
+          )}
         </div>
       </div>
     )
@@ -138,7 +172,9 @@ export default async function MePage() {
                   <td className="px-4 py-2 text-gold font-mono">{s.match.match_id_helldock}</td>
                   <td className="px-4 py-2 text-muted tnum">{s.match.match_date}</td>
                   <td className="px-4 py-2">{s.match.map_name ?? '—'}</td>
-                  <td className="px-4 py-2 text-muted">{s.match.opponent_name ?? '—'}</td>
+                  <td className="px-4 py-2 text-muted">
+                    {cleanOpponentName(s.match.opponent_name) ?? '—'}
+                  </td>
                   <td className="px-4 py-2 text-muted">{s.agent ?? '—'}</td>
                   <td className="px-4 py-2 text-right tnum">
                     <span className={s.match.result === 'W' ? 'text-win-green' : s.match.result === 'L' ? 'text-crimson' : 'text-muted'}>
