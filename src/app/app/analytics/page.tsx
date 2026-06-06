@@ -38,6 +38,10 @@ import {
   type GemsKillEvent,
 } from '@/lib/gems'
 import type { DashMatch, DashRound } from '@/lib/dashboard'
+import {
+  resolveAnalyticsMatchScope,
+  type AnalyticsScopeMatch,
+} from '@/lib/analytics-scope'
 import { requireSelectedTeam } from '@/lib/team-session'
 import { TEAM_CONFIGS } from '@/lib/teams'
 import { getMmrForRiotIds, type MmrLookup } from '@/lib/henrik/mmr'
@@ -49,10 +53,12 @@ type TabKey = 'maps' | 'players' | 'opps' | 'rounds' | 'complab' | 'pool' | 'gem
 
 const VALID_TABS: ReadonlyArray<TabKey> = ['maps', 'players', 'opps', 'rounds', 'complab', 'pool', 'gems']
 
+type AnalyticsPageMatch = DashMatch & AnalyticsScopeMatch
+
 export default async function AnalyticsPage({
   searchParams,
 }: {
-  searchParams: { tab?: string; map?: string; hideAcademy?: string }
+  searchParams: { tab?: string; map?: string; hideAcademy?: string; lastGames?: string }
 }) {
   const { teamId, teamSlug } = await requireSelectedTeam()
   const supabase = createClient()
@@ -63,16 +69,16 @@ export default async function AnalyticsPage({
   const { data: matchesRaw } = await supabase
     .from('matches')
     .select(
-      'id, match_id_helldock, match_date, opponent_name, map_name, our_score, opp_score, result, our_agents'
+      'id, match_id_helldock, match_date, session_num, created_at, imported_at, opponent_name, map_name, our_score, opp_score, result, our_agents'
     )
     .is('deleted_at', null)
     .eq('team_id', teamId)
 
-  const matches: DashMatch[] = matchesRaw ?? []
-  const matchIds = matches.map((m) => m.id)
+  const matchesAll = (matchesRaw ?? []) as AnalyticsPageMatch[]
+  const allMatchIds = matchesAll.map((m) => m.id)
 
   // If no matches, short-circuit empty state
-  if (matches.length === 0) {
+  if (matchesAll.length === 0) {
     return (
       <main className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center px-4">
         <div className="text-center max-w-md">
@@ -102,39 +108,70 @@ export default async function AnalyticsPage({
     )
   }
 
-  // Pull rounds, our players, opp players, kill events — all scoped to the
+  const { data: oppPlayersAllRaw } = await supabase
+    .from('opp_players')
+    .select('match_id, agent, riot_id_full')
+    .in('match_id', allMatchIds)
+
+  const oppPlayersAll = (oppPlayersAllRaw ?? []) as {
+    match_id: string
+    agent: string | null
+    riot_id_full: string | null
+  }[]
+
+  // Internal-scrim detection: any match where 3+ opp players are on the OTHER academy team's roster.
+  const otherRosterKeys = new Set(
+    Object.keys(TEAM_CONFIGS)
+      .filter((s) => s !== teamSlug)
+      .flatMap((s) => Object.keys(TEAM_CONFIGS[s].roster))
+  )
+  const overlapByMatch: Record<string, number> = {}
+  for (const op of oppPlayersAll) {
+    if (op.riot_id_full && otherRosterKeys.has(op.riot_id_full)) {
+      overlapByMatch[op.match_id] = (overlapByMatch[op.match_id] ?? 0) + 1
+    }
+  }
+  const internalMatchIds = new Set(
+    Object.keys(overlapByMatch).filter((k) => overlapByMatch[k] >= 3)
+  )
+  const internalCount = internalMatchIds.size
+
+  const visibleMatches = hideAcademy
+    ? matchesAll.filter((m) => !internalMatchIds.has(m.id))
+    : matchesAll
+  const matchScope = resolveAnalyticsMatchScope(visibleMatches, searchParams.lastGames)
+  const matches = matchScope.matches
+  const matchIds = matches.map((m) => m.id)
+  const matchIdSet = new Set(matchIds)
+  const oppPlayers = oppPlayersAll.filter((op) => matchIdSet.has(op.match_id))
+
+  // Pull rounds, our players, and kill events — all scoped to the
   // matches we have. We now fetch ALL kill_events (not just first-blood) so the
   // S16 impact compute can derive trade rate / drag / carry per player.
   // FB-weapon compute filters down internally.
-  const [roundsRes, mpRes, oppRes, killRes] = await Promise.all([
-    supabase
-      .from('rounds')
-      .select('match_id, round_num, half, side, round_type, outcome, first_blood, clutch_type, clutch_player, site, plant_time_in_round, defuse_time_in_round, our_ults_used, their_ults_used, coach_grade, coach_tags, was_traded, our_econ, their_econ')
-      .in('match_id', matchIds),
-    supabase
-      .from('match_players')
-      .select('match_id, player_id, puuid, k, d, acs, plus_minus, agent, fk, fd, plants, defuses, clutches, clutch_1v2plus, econ, hs, bs, ls, damage_made, damage_received, adr, ability_c, ability_q, ability_e, ability_x, rounds_afk, friendly_fire_outgoing, friendly_fire_incoming, two_k, three_k, four_k, aces, player:players(display_name, roster_status)')
-      .in('match_id', matchIds),
-    supabase
-      .from('opp_players')
-      .select('match_id, agent, riot_id_full')
-      .in('match_id', matchIds),
-    supabase
-      .from('kill_events')
-      .select('match_id, round_num, weapon_id, killer_is_ours, is_first_blood, killer_puuid, victim_puuid, ts_in_round_ms')
-      .in('match_id', matchIds),
-  ])
+  const [roundsRes, mpRes, killRes] =
+    matchIds.length === 0
+      ? [{ data: [] }, { data: [] }, { data: [] }]
+      : await Promise.all([
+          supabase
+            .from('rounds')
+            .select('match_id, round_num, half, side, round_type, outcome, first_blood, clutch_type, clutch_player, site, plant_time_in_round, defuse_time_in_round, our_ults_used, their_ults_used, coach_grade, coach_tags, was_traded, our_econ, their_econ')
+            .in('match_id', matchIds),
+          supabase
+            .from('match_players')
+            .select('match_id, player_id, puuid, k, d, acs, plus_minus, agent, fk, fd, plants, defuses, clutches, clutch_1v2plus, econ, hs, bs, ls, damage_made, damage_received, adr, ability_c, ability_q, ability_e, ability_x, rounds_afk, friendly_fire_outgoing, friendly_fire_incoming, two_k, three_k, four_k, aces, player:players(display_name, roster_status)')
+            .in('match_id', matchIds),
+          supabase
+            .from('kill_events')
+            .select('match_id, round_num, weapon_id, killer_is_ours, is_first_blood, killer_puuid, victim_puuid, ts_in_round_ms')
+            .in('match_id', matchIds),
+        ])
 
   const rounds: DashRound[] = roundsRes.data ?? []
   // Trials are excluded from team aggregates. Mains/subs/orphans pass through.
   const matchPlayersRaw = ((mpRes.data ?? []) as unknown as Array<
     FullMatchPlayer & { player?: { roster_status?: string } | null }
   >).filter((p) => p.player?.roster_status !== 'trial') as FullMatchPlayer[]
-  const oppPlayers = (oppRes.data ?? []) as {
-    match_id: string
-    agent: string | null
-    riot_id_full: string | null
-  }[]
   const allKills = (killRes.data ?? []) as Array<
     GemsKillEvent & {
       killer_puuid: string | null
@@ -166,36 +203,10 @@ export default async function AnalyticsPage({
   const teamConfig = TEAM_CONFIGS[teamSlug]
   const region = teamConfig?.mainAccount.region ?? 'ap'
 
-  // Internal-scrim detection: any match where 3+ opp players are on the OTHER academy team's roster.
-  const otherRosterKeys = new Set(
-    Object.keys(TEAM_CONFIGS)
-      .filter((s) => s !== teamSlug)
-      .flatMap((s) => Object.keys(TEAM_CONFIGS[s].roster))
-  )
-  const overlapByMatch: Record<string, number> = {}
-  for (const op of oppPlayers) {
-    if (op.riot_id_full && otherRosterKeys.has(op.riot_id_full)) {
-      overlapByMatch[op.match_id] = (overlapByMatch[op.match_id] ?? 0) + 1
-    }
-  }
-  const internalMatchIds = new Set(
-    Object.keys(overlapByMatch).filter((k) => overlapByMatch[k] >= 3)
-  )
-  const internalCount = internalMatchIds.size
-
-  // Filter datasets if hideAcademy is on (BEFORE computing all derived stats)
-  const filteredMatches = hideAcademy
-    ? matches.filter((m) => !internalMatchIds.has(m.id))
-    : matches
-  const filteredRounds = hideAcademy
-    ? rounds.filter((r) => !internalMatchIds.has(r.match_id))
-    : rounds
-  const filteredMatchPlayers = hideAcademy
-    ? matchPlayersRaw.filter((mp) => !internalMatchIds.has(mp.match_id))
-    : matchPlayersRaw
-  const filteredOppPlayers = hideAcademy
-    ? oppPlayers.filter((op) => !internalMatchIds.has(op.match_id))
-    : oppPlayers
+  const filteredMatches = matches
+  const filteredRounds = rounds
+  const filteredMatchPlayers = matchPlayersRaw
+  const filteredOppPlayers = oppPlayers
 
   // Pull cached MMR rows for all visible opp riot_ids
   const ranksByRiotId: Record<string, MmrLookup> =
@@ -215,6 +226,7 @@ export default async function AnalyticsPage({
     searchParams.map && mapsAll.some((x) => x.map === searchParams.map)
       ? searchParams.map
       : null
+  const currentMapParam = roundsMapFilter
   const matchIdToMapName: Record<string, string | null> = {}
   for (const m of filteredMatches) matchIdToMapName[m.id] = m.map_name
   const roundsForStats = roundsMapFilter
@@ -230,12 +242,10 @@ export default async function AnalyticsPage({
   const synergy = computeCompSynergy(filteredMatches)
   const mapPool = computeMapPoolHealth(filteredMatches)
 
-  // S16 — Player impact (trade rate, drag, carry). Same hideAcademy filter
-  // applies to all kill_events. The impact compute also reads match_players to
-  // resolve puuid → player_id per match, so it gets the filtered list too.
-  const filteredAllKills = hideAcademy
-    ? allKills.filter((k) => !internalMatchIds.has(k.match_id))
-    : allKills
+  // S16 — Player impact (trade rate, drag, carry). The match scope already
+  // applies to kill_events. The impact compute also reads match_players to
+  // resolve puuid → player_id per match, so it gets the scoped list too.
+  const filteredAllKills = allKills
   const impactInputMatchPlayers: ImpactMatchPlayer[] = filteredMatchPlayers.map(
     (mp) => ({
       match_id: mp.match_id,
@@ -330,9 +340,7 @@ export default async function AnalyticsPage({
   // we inject the S16 value here so CoachSummaryStrip can render the new line).
   coachSummary.mostDepended = mostDepended
 
-  const filteredKillEvents = hideAcademy
-    ? firstBloodKills.filter((k) => !internalMatchIds.has(k.match_id))
-    : firstBloodKills
+  const filteredKillEvents = firstBloodKills
   const gems = {
     multiKill: computeMultiKillLeaders(filteredMatchPlayers),
     clutchLeverage: computeClutchLeverage(filteredMatchPlayers),
@@ -377,6 +385,10 @@ export default async function AnalyticsPage({
         region={region}
         hideAcademy={hideAcademy}
         internalCount={internalCount}
+        lastGames={matchScope.lastGames}
+        scopedMatchCount={matchScope.matches.length}
+        totalMatchCount={matchScope.totalMatches}
+        currentMapParam={currentMapParam}
       />
     </main>
   )
