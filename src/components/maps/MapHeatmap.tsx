@@ -55,9 +55,65 @@ export function isTacticalMode(m: MapHeatmapMode): boolean {
 const KIND_COLOR: Record<DotKind, string> = {
   our_kill: '#34d399', // win-green
   our_death: '#ef4444', // crimson
-  pos_won: '#34d399', // win-green — valuable spot (we won the round)
-  pos_lost: '#ef4444', // crimson — we still got fcked from this spot
-  pos_neutral: '#FFD700', // gold — no outcome recorded
+  pos_won: '#34d399', // win-green
+  pos_lost: '#ef4444', // crimson
+  pos_neutral: '#FFD700', // gold
+}
+
+type HeatmapIntent = {
+  title: string
+  question: string
+  read: string
+  next: string
+}
+
+const MODE_INTENT: Record<MapHeatmapMode, HeatmapIntent> = {
+  first_blood: {
+    title: 'Opening fight map',
+    question: 'Where do first kills and first deaths happen?',
+    read: 'Green means we got the first pick. Red means we died first.',
+    next: 'If one red lane repeats, change the default route or send a trader with that player.',
+  },
+  all: {
+    title: 'All fight map',
+    question: 'Where are fights helping or hurting us overall?',
+    read: 'Green means we got the kill there. Red means we died there.',
+    next: 'Keep the green fight spots and review any red cluster before the next scrim.',
+  },
+  post_plant_hold: {
+    title: 'After-plant hold map',
+    question: 'After we plant, which hold spots help us close the round?',
+    read: 'Green means that hold ended in a round win. Red means that hold still lost the round.',
+    next: 'Keep green holds. Replace red holds with safer crossfires, earlier repositioning, or better support utility.',
+  },
+  retake_spot: {
+    title: 'Retake map',
+    question: 'When they plant, which retake positions actually win rounds?',
+    read: 'Green means the retake position ended in a win. Red means the retake position lost.',
+    next: 'Use red clusters to review retake route, spacing, timing, and utility before the next block.',
+  },
+  round_endpoint: {
+    title: 'Round finish map',
+    question: 'Where do rounds actually end for us?',
+    read: 'Green means the final fight ended in a win. Red means the final fight ended in a loss.',
+    next: 'Repeated red endings usually point to late-round positioning, isolation, or slow trade timing.',
+  },
+  plant_cluster: {
+    title: 'Plant fight map',
+    question: 'Around our plant timing, where are fights happening?',
+    read: 'Green means the plant fight helped convert the round. Red means the fight did not convert.',
+    next: 'Use this to check if the execute lands in safe space or needs different clearing and support.',
+  },
+}
+
+function heatmapViewLabel(view: MapHeatmapView): string {
+  if (view === 'auto') return 'Smart'
+  if (view === 'density') return 'Cloud'
+  return 'Dots'
+}
+
+function effectiveViewLabel(view: 'dots' | 'density'): string {
+  return view === 'density' ? 'cloud' : 'dots'
 }
 
 export default function MapHeatmap({
@@ -302,6 +358,12 @@ export default function MapHeatmap({
   const posWon = dots.filter((d) => d.kind === 'pos_won').length
   const posLost = dots.filter((d) => d.kind === 'pos_lost').length
   const posNeutral = dots.filter((d) => d.kind === 'pos_neutral').length
+  const intent = MODE_INTENT[mode]
+  const sampleRead = tactical
+    ? `${posWon} green round wins, ${posLost} red round losses${
+        posNeutral > 0 ? `, ${posNeutral} yellow unknown outcomes` : ''
+      }.`
+    : `${ourKills} green kills, ${ourDeaths} red deaths.`
 
   // Effective render mode — 'auto' picks density once we cross the soup threshold.
   const effectiveView: 'dots' | 'density' =
@@ -313,17 +375,37 @@ export default function MapHeatmap({
 
   const tacticalLabel =
     mode === 'post_plant_hold'
-      ? 'post-plant holds (ATT)'
+      ? 'after our plant'
       : mode === 'retake_spot'
-      ? 'retake spots (DEF)'
+      ? 'when we retake'
       : mode === 'round_endpoint'
-      ? 'where rounds ended'
+      ? 'round finish spots'
       : mode === 'plant_cluster'
-      ? 'fights near plant (ATT, ±5s)'
+      ? 'around plant timing'
       : ''
 
   return (
     <div className="w-full">
+      <div className="mb-3 rounded-lg border border-line bg-surface-2 px-3 py-3">
+        <p className="text-2xs uppercase tracking-[0.16em] text-muted-2">
+          What this view answers
+        </p>
+        <h3 className="mt-1 text-sm font-semibold text-fg">{intent.title}</h3>
+        <p className="mt-1 text-xs text-muted leading-relaxed">{intent.question}</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="rounded-md bg-surface border border-line px-2.5 py-2">
+            <p className="text-2xs uppercase tracking-wider text-muted-2">Read</p>
+            <p className="mt-1 text-xs text-fg/90 leading-relaxed">
+              {intent.read} {sampleRead}
+            </p>
+          </div>
+          <div className="rounded-md bg-surface border border-line px-2.5 py-2">
+            <p className="text-2xs uppercase tracking-wider text-muted-2">Review next</p>
+            <p className="mt-1 text-xs text-fg/90 leading-relaxed">{intent.next}</p>
+          </div>
+        </div>
+      </div>
+
       {/* Filters — all client-side over the already-loaded events. */}
       <div className="flex flex-wrap items-center gap-2 mb-2">
         {roster && roster.length > 0 && (
@@ -395,7 +477,7 @@ export default function MapHeatmap({
         )}
       </div>
 
-      {/* View toggle (auto / dots / density). Auto picks density when N is big. */}
+      {/* View toggle. Smart picks the clearest view for the event count. */}
       <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
         <div className="inline-flex rounded-md border border-line-strong overflow-hidden text-2xs">
           {(['auto', 'dots', 'density'] as MapHeatmapView[]).map((v, i) => {
@@ -412,10 +494,10 @@ export default function MapHeatmap({
                     : 'bg-surface text-muted hover:text-fg'
                 }`}
               >
-                {v}
+                {heatmapViewLabel(v)}
                 {showAutoTag && (
                   <span className="ml-1 text-muted-2 normal-case tracking-normal">
-                    ({effectiveView})
+                    ({effectiveViewLabel(effectiveView)})
                   </span>
                 )}
               </button>
@@ -438,7 +520,7 @@ export default function MapHeatmap({
           viewBox="0 0 1 1"
           preserveAspectRatio="none"
           className="absolute inset-0 w-full h-full"
-          aria-label={`${mapName} kill-event heatmap`}
+          aria-label={`${mapName} map fight review`}
         >
           {effectiveView === 'density' ? (
             <DensityLayers layers={densityLayers} />
@@ -469,14 +551,14 @@ export default function MapHeatmap({
                 className="inline-block w-2.5 h-2.5 rounded-full"
                 style={{ backgroundColor: KIND_COLOR.pos_won }}
               />
-              <span className="text-win-green tnum">{posWon}</span> valuable
+              <span className="text-win-green tnum">{posWon}</span> round won
             </span>
             <span className="flex items-center gap-1.5">
               <span
                 className="inline-block w-2.5 h-2.5 rounded-full"
                 style={{ backgroundColor: KIND_COLOR.pos_lost }}
               />
-              <span className="text-crimson tnum">{posLost}</span> fcked
+              <span className="text-crimson tnum">{posLost}</span> round lost
             </span>
             {posNeutral > 0 && (
               <span className="flex items-center gap-1.5">
@@ -484,7 +566,7 @@ export default function MapHeatmap({
                   className="inline-block w-2.5 h-2.5 rounded-full"
                   style={{ backgroundColor: KIND_COLOR.pos_neutral }}
                 />
-                <span className="text-gold tnum">{posNeutral}</span> n/a
+                <span className="text-gold tnum">{posNeutral}</span> outcome unknown
               </span>
             )}
             <span className="text-muted">· {tacticalLabel}</span>
@@ -496,18 +578,18 @@ export default function MapHeatmap({
                 className="inline-block w-2.5 h-2.5 rounded-full"
                 style={{ backgroundColor: KIND_COLOR.our_kill }}
               />
-              <span className="text-win-green tnum">{ourKills}</span> our kills
+              <span className="text-win-green tnum">{ourKills}</span> we got kill
             </span>
             <span className="flex items-center gap-1.5">
               <span
                 className="inline-block w-2.5 h-2.5 rounded-full"
                 style={{ backgroundColor: KIND_COLOR.our_death }}
               />
-              <span className="text-crimson tnum">{ourDeaths}</span> our deaths
+              <span className="text-crimson tnum">{ourDeaths}</span> we died
             </span>
           </div>
         )}
-        <span className="text-muted">brighter = more recent</span>
+        <span className="text-muted">brighter marks are newer matches</span>
       </div>
     </div>
   )

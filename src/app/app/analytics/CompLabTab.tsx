@@ -262,12 +262,12 @@ function HeatmapView({ matrix }: { matrix: CompMatrix }) {
   )
 }
 
-// Color a synergy lift cell. Lift = pair W% − mean(solo W%s), in pp.
+// Color a synergy lift cell. Lift = pair W% minus mean solo W%, in points.
 // Strongly positive = duo overperforms; negative = anti-synergy.
 function liftColor(lift: number | null): { bg: string; text: string } {
   if (lift == null) return { bg: 'transparent', text: '#6B7280' }
   if (lift >= 0) {
-    // 0 → 0.1 alpha; +25pp → 0.6
+    // 0 -> 0.1 alpha; +25 points -> 0.6
     const a = Math.min(0.6, 0.1 + (lift / 25) * 0.5)
     return { bg: `rgba(52,211,153,${a.toFixed(2)})`, text: '#34D399' }
   }
@@ -328,7 +328,7 @@ function SynergyHighlightsStrip({
                   {p.a} <span className="text-muted-2">+</span> {p.b}
                 </span>
                 <span className="shrink-0 text-win-green font-semibold">
-                  +{p.liftPp}pp
+                  +{p.liftPp} pts
                   <span className="text-muted-2 text-2xs ml-1">n={p.total}</span>
                 </span>
               </li>
@@ -354,7 +354,7 @@ function SynergyHighlightsStrip({
                       {p.a} <span className="text-muted-2">+</span> {p.b}
                     </span>
                     <span className="shrink-0 text-crimson font-semibold">
-                      {p.liftPp}pp
+                      {p.liftPp} pts
                       <span className="text-muted-2 text-2xs ml-1">n={p.total}</span>
                     </span>
                   </li>
@@ -450,7 +450,7 @@ function SynergyView({ synergy }: { synergy: SynergyMatrix }) {
                     >
                       {p.liftPp == null
                         ? '—'
-                        : `${p.liftPp > 0 ? '+' : ''}${p.liftPp}pp`}
+                        : `${p.liftPp > 0 ? '+' : ''}${p.liftPp} pts`}
                     </td>
                   </tr>
                 )
@@ -536,7 +536,7 @@ function SynergyView({ synergy }: { synergy: SynergyMatrix }) {
                         <td
                           key={colAgent}
                           className="px-1.5 py-1.5 text-center"
-                          title={`${rowAgent}+${colAgent} · ${cell.wins}-${cell.losses} · pair ${cell.winPct ?? '—'}% · lift ${cell.liftPp == null ? '—' : cell.liftPp + 'pp'}`}
+                          title={`${rowAgent}+${colAgent} · ${cell.wins}-${cell.losses} · pair ${cell.winPct ?? '—'}% · lift ${cell.liftPp == null ? '—' : cell.liftPp + ' pts'}`}
                         >
                           <div
                             className="rounded-md px-1.5 py-1 inline-flex flex-col items-center min-w-[3rem]"

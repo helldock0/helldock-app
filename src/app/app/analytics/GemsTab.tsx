@@ -27,14 +27,28 @@ export type GemsBundle = {
 
 export default function GemsTab({ gems }: { gems: GemsBundle }) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-      <PistolCarryOverCard data={gems.pistolCarryOver} />
-      <MultiKillCard rows={gems.multiKill} />
-      <ClutchCard rows={gems.clutchLeverage} />
-      <TradeCard stats={gems.tradePct} />
-      <FbWeaponCard rows={gems.fbWeapons} />
-      <DamageNetCard rows={gems.damageNet} />
-      <PlantTimingCard rows={gems.plantTiming} />
+    <div className="space-y-5">
+      <div className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5">
+        <p className="text-2xs uppercase tracking-[0.16em] text-muted-2">
+          advanced lab
+        </p>
+        <h2 className="text-lg font-semibold text-fg mt-1">
+          Deep signals for review sessions
+        </h2>
+        <p className="text-xs text-muted mt-2 max-w-2xl leading-relaxed">
+          Use these when the coach read raises a question. The main Analytics tab
+          surfaces the highest-value calls; this view keeps the supporting detail.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <PistolCarryOverCard data={gems.pistolCarryOver} />
+        <MultiKillCard rows={gems.multiKill} />
+        <ClutchCard rows={gems.clutchLeverage} />
+        <TradeCard stats={gems.tradePct} />
+        <FbWeaponCard rows={gems.fbWeapons} />
+        <DamageNetCard rows={gems.damageNet} />
+        <PlantTimingCard rows={gems.plantTiming} />
+      </div>
     </div>
   )
 }
@@ -94,7 +108,7 @@ function PistolCarryOverCard({ data }: { data: PistolCarryOver }) {
           }`}
           title="W% in bonus rounds after pistol W minus W% after pistol L"
         >
-          {delta == null ? '—' : `${delta > 0 ? '+' : ''}${delta}pp`}
+          {delta == null ? '—' : `${delta > 0 ? '+' : ''}${delta} pts`}
         </span>
       </div>
       <p className="mt-3 text-2xs text-muted-2 leading-relaxed">

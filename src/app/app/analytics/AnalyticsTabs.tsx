@@ -13,25 +13,25 @@ import type {
 } from '@/lib/analytics'
 import type { MmrLookup } from '@/lib/henrik/mmr'
 import type { SynergyMatrix } from '@/lib/comp-synergy'
+import CoachTab from './CoachTab'
 import CoachSummaryStrip from './CoachSummaryStrip'
 import MapsTab from './MapsTab'
 import PlayersTab from './PlayersTab'
 import OppsTab from './OppsTab'
 import RoundsTab from './RoundsTab'
 import CompLabTab from './CompLabTab'
-import MapPoolTab from './MapPoolTab'
 import GemsTab, { type GemsBundle } from './GemsTab'
 
-type TabKey = 'maps' | 'players' | 'opps' | 'rounds' | 'complab' | 'pool' | 'gems'
+type TabKey = 'coach' | 'maps' | 'players' | 'opps' | 'rounds' | 'complab' | 'advanced'
 
 const TABS: { key: TabKey; label: string }[] = [
+  { key: 'coach', label: 'Coach' },
   { key: 'maps', label: 'Maps' },
   { key: 'players', label: 'Players' },
   { key: 'opps', label: 'Opponents' },
   { key: 'rounds', label: 'Rounds' },
   { key: 'complab', label: 'Comp Lab' },
-  { key: 'pool', label: 'Map Pool' },
-  { key: 'gems', label: 'Gems' },
+  { key: 'advanced', label: 'Advanced' },
 ]
 
 export default function AnalyticsTabs({
@@ -96,7 +96,7 @@ export default function AnalyticsTabs({
   return (
     <>
       {/* Coach Summary strip */}
-      <CoachSummaryStrip summary={coachSummary} />
+      {tab !== 'coach' && <CoachSummaryStrip summary={coachSummary} />}
 
       {/* Tab bar */}
       <div
@@ -147,7 +147,17 @@ export default function AnalyticsTabs({
 
       {/* Panel */}
       <div role="tabpanel">
-        {tab === 'maps' && <MapsTab maps={maps} />}
+        {tab === 'coach' && (
+          <CoachTab
+            summary={coachSummary}
+            mapPool={mapPool}
+            players={players}
+            opps={opps}
+            roundsStats={roundsStats}
+            gems={gems}
+          />
+        )}
+        {tab === 'maps' && <MapsTab maps={maps} mapPool={mapPool} />}
         {tab === 'players' && <PlayersTab players={players} />}
         {tab === 'opps' && (
           <OppsTab
@@ -173,8 +183,7 @@ export default function AnalyticsTabs({
             synergy={synergy}
           />
         )}
-        {tab === 'pool' && <MapPoolTab pool={mapPool} />}
-        {tab === 'gems' && <GemsTab gems={gems} />}
+        {tab === 'advanced' && <GemsTab gems={gems} />}
       </div>
     </>
   )

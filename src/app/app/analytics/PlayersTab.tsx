@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import type { PlayerStat } from '@/lib/analytics'
 import RatingTrendChart from '@/components/charts/RatingTrendChart'
@@ -186,7 +186,7 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
       </div>
 
     <div className="bg-surface-2 border border-line-strong/40 rounded-2xl overflow-x-auto">
-      <table className="w-full text-sm whitespace-nowrap min-w-[1750px]">
+      <table className={`compact-player-table focus-${activeFocus} w-full text-sm whitespace-nowrap min-w-[1120px]`}>
         <thead>
           <tr className="border-b border-line text-2xs uppercase tracking-[0.16em] text-muted-2">
             <Th label="Player" k="name" sort={sort} onClick={toggleSort} align="left" />
@@ -204,8 +204,8 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
             <th className="text-left px-4 py-3 font-semibold">Top Agent</th>
             <Th label="7d Δ" k="delta" sort={sort} onClick={toggleSort} align="right" tooltip="Recent form: your last-7-days ACS minus your all-time ACS. Green = you're heating up." />
             <Th label="Trade%" k="trade" sort={sort} onClick={toggleSort} align="right" tooltip="Of the rounds where you died, % where a teammate killed your killer within 5 seconds. Higher = team plays around you well." />
-            <Th label="Drag" k="drag" sort={sort} onClick={toggleSort} align="right" tooltip="How much our round-loss rate goes UP when you die vs when you stay alive (in percentage points, 'pp'). High = the team can't function without you alive." />
-            <Th label="Carry" k="carry" sort={sort} onClick={toggleSort} align="right" tooltip="How much our round-win rate goes UP in rounds where you got ≥1 kill vs rounds you got zero (in percentage points, 'pp'). High = your fragging directly wins rounds." />
+            <Th label="Death impact" k="drag" sort={sort} onClick={toggleSort} align="right" tooltip="When this player dies, how many points our round-loss rate rises. High = protect them better or trade faster." />
+            <Th label="Kill impact" k="carry" sort={sort} onClick={toggleSort} align="right" tooltip="When this player gets at least one kill, how many points our round-win rate rises. High = their kills often convert rounds." />
             <Th label="Lev" k="lev" sort={sort} onClick={toggleSort} align="right" tooltip="WP-weighted leverage carry. Sum across moments (multikills, clutches, opening duels) weighted by how surprising the round outcome was. A 1v3 in a 5%-WP round is worth ~26× a 3K in a 95%-WP round. Click the row to see top moments." />
             <Th label="KST%" k="kst" sort={sort} onClick={toggleSort} align="right" tooltip="Kill, Survive, or Traded — % of rounds where you contributed (got a kill, stayed alive, OR your death was traded back by a teammate). Consistency metric. 70%+ is good." />
             <Th label="OpDuel" k="opduel" sort={sort} onClick={toggleSort} align="right" tooltip="Opening-duel win rate. When the first kill of a round involved you (your kill OR your death), how often you came out on top." />
@@ -220,9 +220,8 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
           {sorted.map((p, i) => {
             const isExpanded = expanded === p.playerId
             return (
-              <>
+              <Fragment key={p.playerId}>
                 <tr
-                  key={p.playerId}
                   onClick={() => setExpanded(isExpanded ? null : p.playerId)}
                   className={`
                     cursor-pointer transition-colors hover:bg-surface-3
@@ -360,7 +359,7 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
                         }`}
                       >
                         {p.drag > 0 ? '+' : ''}
-                        {p.drag}pp
+                        {p.drag} pts
                       </span>
                     )}
                   </td>
@@ -387,7 +386,7 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
                         }`}
                       >
                         {p.carry > 0 ? '+' : ''}
-                        {p.carry}pp
+                        {p.carry} pts
                       </span>
                     )}
                   </td>
@@ -754,11 +753,48 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             )
           })}
         </tbody>
       </table>
+      <style>{`
+        .compact-player-table th:nth-child(5),
+        .compact-player-table td:nth-child(5),
+        .compact-player-table th:nth-child(8),
+        .compact-player-table td:nth-child(8),
+        .compact-player-table th:nth-child(9),
+        .compact-player-table td:nth-child(9),
+        .compact-player-table th:nth-child(10),
+        .compact-player-table td:nth-child(10),
+        .compact-player-table th:nth-child(11),
+        .compact-player-table td:nth-child(11),
+        .compact-player-table th:nth-child(18),
+        .compact-player-table td:nth-child(18),
+        .compact-player-table th:nth-child(19),
+        .compact-player-table td:nth-child(19),
+        .compact-player-table th:nth-child(20),
+        .compact-player-table td:nth-child(20),
+        .compact-player-table th:nth-child(21),
+        .compact-player-table td:nth-child(21),
+        .compact-player-table th:nth-child(23),
+        .compact-player-table td:nth-child(23),
+        .compact-player-table th:nth-child(24),
+        .compact-player-table td:nth-child(24),
+        .compact-player-table th:nth-child(25),
+        .compact-player-table td:nth-child(25) {
+          display: none;
+        }
+
+        .compact-player-table.focus-consistency th:nth-child(23),
+        .compact-player-table.focus-consistency td:nth-child(23),
+        .compact-player-table.focus-plant th:nth-child(24),
+        .compact-player-table.focus-plant td:nth-child(24),
+        .compact-player-table.focus-plant th:nth-child(25),
+        .compact-player-table.focus-plant td:nth-child(25) {
+          display: table-cell;
+        }
+      `}</style>
     </div>
     </div>
   )
