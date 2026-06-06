@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import type { PlayerStat } from '@/lib/analytics'
 import RatingTrendChart from '@/components/charts/RatingTrendChart'
 import { formatOpponentName } from '@/lib/opponent-name'
+import PlayerComparePanel from './PlayerComparePanel'
 
 const EXPAND_HINT_KEY = 'helldock.playersTab.expandHintDismissed'
 
@@ -138,6 +139,8 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
 
   return (
     <div className="space-y-3">
+      <PlayerComparePanel players={players} />
+
       {showExpandHint && (
         <div className="flex items-center justify-between gap-3 bg-gold/8 border border-gold/30 rounded-xl px-4 py-2.5">
           <p className="text-xs text-fg">
@@ -220,9 +223,8 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
           {sorted.map((p, i) => {
             const isExpanded = expanded === p.playerId
             return (
-              <>
+              <Fragment key={p.playerId}>
                 <tr
-                  key={p.playerId}
                   onClick={() => setExpanded(isExpanded ? null : p.playerId)}
                   className={`
                     cursor-pointer transition-colors hover:bg-surface-3
@@ -754,7 +756,7 @@ export default function PlayersTab({ players }: { players: PlayerStat[] }) {
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             )
           })}
         </tbody>
