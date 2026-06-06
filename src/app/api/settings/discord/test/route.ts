@@ -29,12 +29,12 @@ export async function POST(req: Request) {
     oppScore: 11,
     result: 'W',
     tactical: {
-      halves: { h1: { w: 8, l: 4 }, h2: { w: 5, l: 7 } },
-      pistol: { w: 1, l: 1 },
-      att: { w: 7, l: 5, plantRatePct: 75, avgPlantSec: 27 },
-      def: { w: 6, l: 6, defuseRatePct: 33, avgDefuseSec: 38 },
+      halves: { h1: { w: 6, l: 6 }, h2: { w: 7, l: 5 } },
+      pistol: { w: 0, l: 2 },
+      att: { w: 4, l: 8, plantRatePct: 42, avgPlantSec: 31 },
+      def: { w: 9, l: 3, defuseRatePct: 50, avgDefuseSec: 37 },
       byBuyType: [
-        { type: 'Pistol', w: 1, l: 1 },
+        { type: 'Pistol', w: 0, l: 2 },
         { type: 'Eco', w: 1, l: 3 },
         { type: 'Anti-Eco', w: 2, l: 1 },
         { type: 'Bonus', w: 1, l: 1 },
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
     streak: { kind: 'W', length: 3, extended: true },
     mapHistory: {
       mapName: 'Lotus',
-      wins: 5,
+      wins: 2,
       total: 7,
       windowLabel: 'last 7 plays',
     },
