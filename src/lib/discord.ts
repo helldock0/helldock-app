@@ -87,89 +87,50 @@ export function buildMatchEmbed(s: DiscordMatchSummary) {
   const fields: EmbedField[] = []
   const t = s.tactical
 
-  // Halves + pistol — one row of inline fields.
-  if (t.halves) {
-    const otStr = t.halves.ot ? ` · OT ${t.halves.ot.w}-${t.halves.ot.l}` : ''
+  const coachBrief = buildCoachBrief(s)
+  if (coachBrief) {
     fields.push({
-      name: 'Halves',
-      value: `H1 ${t.halves.h1.w}-${t.halves.h1.l} · H2 ${t.halves.h2.w}-${t.halves.h2.l}${otStr}`,
-      inline: true,
-    })
-  }
-  if (t.pistol) {
-    fields.push({
-      name: 'Pistol',
-      value: `${t.pistol.w}-${t.pistol.l}`,
-      inline: true,
-    })
-  }
-  // ATT / DEF side stat blocks — inline, side by side.
-  if (t.att) {
-    const parts = [`${t.att.w}-${t.att.l}`]
-    if (t.att.plantRatePct != null) parts.push(`plant ${t.att.plantRatePct}%`)
-    if (t.att.avgPlantSec != null) parts.push(`avg ${t.att.avgPlantSec}s`)
-    fields.push({ name: 'ATT', value: parts.join(' · '), inline: true })
-  }
-  if (t.def) {
-    const parts = [`${t.def.w}-${t.def.l}`]
-    if (t.def.defuseRatePct != null) parts.push(`defuse ${t.def.defuseRatePct}%`)
-    if (t.def.avgDefuseSec != null) parts.push(`avg ${t.def.avgDefuseSec}s`)
-    fields.push({ name: 'DEF', value: parts.join(' · '), inline: true })
-  }
-  // Buy types — full-width line.
-  if (t.byBuyType) {
-    fields.push({
-      name: 'Buy types',
-      value: t.byBuyType.map((b) => `${b.type} ${b.w}-${b.l}`).join(' · '),
+      name: 'Coach brief',
+      value: coachBrief,
       inline: false,
     })
   }
 
-  // Sites — full-width line with win pct.
-  if (t.sites) {
-    const parts: string[] = []
-    for (const k of ['A', 'B', 'C'] as const) {
-      const s2 = t.sites[k]
-      if (s2.total > 0) {
-        const wp = Math.round((s2.wins / s2.total) * 100)
-        parts.push(`${k} ${s2.wins}/${s2.total} (${wp}%)`)
-      }
-    }
-    if (parts.length) {
-      fields.push({ name: 'Sites', value: parts.join(' · '), inline: false })
-    }
-  }
-
-  // Highlights — multi-kills + clutches, top 2-3 by impact.
-  if (s.highlights && s.highlights.length) {
-    fields.push({
-      name: 'Highlights',
-      value: s.highlights.map(formatHighlight).join(' · '),
-      inline: false,
-    })
-  }
-
-  // Review queue — algorithmic top rounds worth a second look. One line each.
   if (s.reviewItems && s.reviewItems.length) {
     fields.push({
-      name: '🔎 Review queue',
+      name: 'Review next',
       value: '```\n' + formatReviewQueueForDiscord(s.reviewItems) + '\n```',
       inline: false,
     })
   }
 
-  // Scoreboards — separate code blocks for monospace alignment.
+  const scoreFlow = formatScoreFlow(t)
+  if (scoreFlow) {
+    fields.push({ name: 'Score flow', value: scoreFlow, inline: false })
+  }
+
+  const sideRead = formatSideRead(t)
+  if (sideRead) {
+    fields.push({ name: 'Side read', value: sideRead, inline: false })
+  }
+
+  const economy = formatEconomy(t)
+  if (economy) {
+    fields.push({ name: 'Economy', value: economy, inline: false })
+  }
+
   if (s.playerDeltas && s.playerDeltas.length) {
     fields.push({
-      name: 'Our team (ACS vs avg)',
-      value: '```\n' + formatScoreboardBlock(s.playerDeltas, true) + '\n```',
+      name: 'Players',
+      value: '```\n' + formatScoreboardBlock(s.playerDeltas.slice(0, 5), true) + '\n```',
       inline: false,
     })
   }
-  if (s.oppScoreboard && s.oppScoreboard.length) {
+
+  if (s.oppScoreboard && s.oppScoreboard.length >= 3) {
     fields.push({
-      name: 'Them',
-      value: '```\n' + formatScoreboardBlock(s.oppScoreboard, false) + '\n```',
+      name: 'Opponent read',
+      value: '```\n' + formatScoreboardBlock(s.oppScoreboard.slice(0, 5), false) + '\n```',
       inline: false,
     })
   }
@@ -220,6 +181,204 @@ function buildFormLine(
   return parts.length ? `Form: ${parts.join(' · ')}` : null
 }
 
+function buildCoachBrief(s: DiscordMatchSummary): string | null {
+  const lines: string[] = []
+
+  pushBriefLine(lines, buildSideConcern(s.tactical))
+  pushBriefLine(lines, buildEconomyConcern(s.tactical))
+  pushBriefLine(lines, buildMapHistoryNote(s.mapHistory))
+
+  if (lines.length < 2) pushBriefLine(lines, buildScoreFlowNote(s.tactical))
+  if (lines.length < 3) pushBriefLine(lines, buildPlayerNote(s.playerDeltas))
+  if (lines.length < 3) pushBriefLine(lines, buildHighlightNote(s.highlights))
+
+  return lines.length ? lines.slice(0, 3).map((line) => `- ${line}`).join('\n') : null
+}
+
+function pushBriefLine(lines: string[], line: string | null) {
+  if (line && !lines.includes(line)) lines.push(line)
+}
+
+function buildSideConcern(t: TacticalBreakdown): string | null {
+  type SideConcernCandidate = {
+    label: 'Attack' | 'Defense'
+    record: string
+    w: number
+    l: number
+    total: number
+  }
+
+  const sides = [
+    t.att
+      ? {
+          label: 'Attack',
+          record: formatRecord(t.att.w, t.att.l),
+          w: t.att.w,
+          l: t.att.l,
+          total: t.att.w + t.att.l,
+        }
+      : null,
+    t.def
+      ? {
+          label: 'Defense',
+          record: formatRecord(t.def.w, t.def.l),
+          w: t.def.w,
+          l: t.def.l,
+          total: t.def.w + t.def.l,
+        }
+      : null,
+  ].filter((side): side is SideConcernCandidate => side != null)
+
+  const worst = sides
+    .filter((side) => side.total >= 4 && side.l > side.w)
+    .sort((a, b) => winPct(a.w, a.l) - winPct(b.w, b.l))[0]
+
+  if (!worst) return null
+
+  return worst.label === 'Attack'
+    ? `Attack went ${worst.record}; review exec spacing and post-plants.`
+    : `Defense went ${worst.record}; review setups, retakes, and first contact.`
+}
+
+function buildEconomyConcern(t: TacticalBreakdown): string | null {
+  if (t.pistol && t.pistol.l > t.pistol.w) {
+    const total = t.pistol.w + t.pistol.l
+    const lead =
+      total === 2 && t.pistol.l === 2
+        ? 'Lost both pistols'
+        : `Pistols went ${formatRecord(t.pistol.w, t.pistol.l)}`
+    return `${lead}; review opening plan and conversion path.`
+  }
+
+  const worstBuy = (t.byBuyType ?? [])
+    .filter((buy) => buy.type !== 'Pistol' && buy.w + buy.l >= 2 && buy.l > buy.w)
+    .sort((a, b) => winPct(a.w, a.l) - winPct(b.w, b.l))[0]
+
+  return worstBuy
+    ? `${worstBuy.type} rounds went ${formatRecord(worstBuy.w, worstBuy.l)}; review economy plan.`
+    : null
+}
+
+function buildMapHistoryNote(mapHistory: MapHistorySnapshot | null): string | null {
+  if (!mapHistory || mapHistory.total < 2) return null
+
+  const losses = mapHistory.total - mapHistory.wins
+  const record = `${mapHistory.wins}-${losses}`
+  if (mapHistory.wins < losses) {
+    return `${mapHistory.mapName} is ${record} in ${mapHistory.windowLabel}; review map prep.`
+  }
+  if (mapHistory.wins > losses) {
+    return `${mapHistory.mapName} is ${record} in ${mapHistory.windowLabel}; keep current prep.`
+  }
+  return `${mapHistory.mapName} is ${record} in ${mapHistory.windowLabel}; decide if it stays in pool.`
+}
+
+function buildScoreFlowNote(t: TacticalBreakdown): string | null {
+  if (!t.halves) return null
+
+  if (t.halves.h1.w > t.halves.h1.l && t.halves.h2.l > t.halves.h2.w) {
+    return `Second half slipped ${formatRecord(t.halves.h2.w, t.halves.h2.l)}; review closing calls.`
+  }
+  if (t.halves.h1.l > t.halves.h1.w) {
+    return `Slow start ${formatRecord(t.halves.h1.w, t.halves.h1.l)}; review first-half setup.`
+  }
+  return null
+}
+
+function buildPlayerNote(playerDeltas: PlayerDelta[] | null): string | null {
+  const rows = (playerDeltas ?? []).filter((p) => p.acs != null)
+  if (!rows.length) return null
+
+  const lowDelta = rows
+    .filter((p) => p.acsDelta != null && p.acsDelta <= -25)
+    .sort((a, b) => (a.acsDelta ?? 0) - (b.acsDelta ?? 0))[0]
+  if (lowDelta) {
+    return `${lowDelta.name} was ${Math.abs(lowDelta.acsDelta ?? 0)} ACS below avg; review role comfort.`
+  }
+
+  const top = rows.slice().sort((a, b) => (b.acs ?? -1) - (a.acs ?? -1))[0]
+  return top ? `${top.name} led at ${Math.round(top.acs ?? 0)} ACS; keep enabling that plan.` : null
+}
+
+function buildHighlightNote(highlights: Highlight[] | null): string | null {
+  const clutch = (highlights ?? []).find((h) => h.kind === 'clutch')
+  if (clutch && clutch.kind === 'clutch') {
+    return `Key swing: ${clutch.player} ${clutch.clutchType} clutch R${clutch.round}.`
+  }
+
+  const multi = (highlights ?? [])[0]
+  if (!multi || multi.kind === 'clutch') return null
+
+  const label =
+    multi.kind === 'ace'
+      ? 'ace'
+      : multi.kind === 'four_k'
+      ? '4K'
+      : '3K'
+  return `Key swing: ${multi.player} ${multi.count > 1 ? `${multi.count}x ` : ''}${label}.`
+}
+
+function formatScoreFlow(t: TacticalBreakdown): string | null {
+  const parts: string[] = []
+  if (t.halves) {
+    parts.push(`H1 ${formatRecord(t.halves.h1.w, t.halves.h1.l)}`)
+    parts.push(`H2 ${formatRecord(t.halves.h2.w, t.halves.h2.l)}`)
+    if (t.halves.ot) parts.push(`OT ${formatRecord(t.halves.ot.w, t.halves.ot.l)}`)
+  }
+  if (t.pistol) parts.push(`Pistols ${formatRecord(t.pistol.w, t.pistol.l)}`)
+  return parts.length ? parts.join(' | ') : null
+}
+
+function formatSideRead(t: TacticalBreakdown): string | null {
+  const lines: string[] = []
+  if (t.att) {
+    const parts = [`Attack ${formatRecord(t.att.w, t.att.l)}`]
+    if (t.att.plantRatePct != null) parts.push(`plant ${t.att.plantRatePct}%`)
+    if (t.att.avgPlantSec != null) parts.push(`avg plant ${t.att.avgPlantSec}s`)
+    lines.push(parts.join(', '))
+  }
+  if (t.def) {
+    const parts = [`Defense ${formatRecord(t.def.w, t.def.l)}`]
+    if (t.def.defuseRatePct != null) parts.push(`defuse ${t.def.defuseRatePct}%`)
+    if (t.def.avgDefuseSec != null) parts.push(`avg defuse ${t.def.avgDefuseSec}s`)
+    lines.push(parts.join(', '))
+  }
+
+  const siteLine = formatSites(t.sites)
+  if (siteLine) lines.push(`Sites: ${siteLine}`)
+
+  return lines.length ? lines.join('\n') : null
+}
+
+function formatEconomy(t: TacticalBreakdown): string | null {
+  if (!t.byBuyType?.length) return null
+  return t.byBuyType
+    .map((buy) => `${buy.type} ${formatRecord(buy.w, buy.l)}`)
+    .join(' | ')
+}
+
+function formatSites(sites: TacticalBreakdown['sites']): string | null {
+  if (!sites) return null
+
+  const parts: string[] = []
+  for (const site of ['A', 'B', 'C'] as const) {
+    const row = sites[site]
+    if (row.total <= 0) continue
+    const pct = Math.round((row.wins / row.total) * 100)
+    parts.push(`${site} ${row.wins}/${row.total} (${pct}%)`)
+  }
+  return parts.length ? parts.join(' | ') : null
+}
+
+function formatRecord(wins: number, losses: number): string {
+  return `${wins}-${losses}`
+}
+
+function winPct(wins: number, losses: number): number {
+  const total = wins + losses
+  return total > 0 ? wins / total : 0
+}
+
 type ScoreboardLine = {
   name: string
   k: number | null
@@ -258,23 +417,6 @@ function formatKad(
 ): string {
   const fmt = (n: number | null) => (n == null ? '—' : String(n))
   return `${fmt(k)}/${fmt(a)}/${fmt(d)}`
-}
-
-function formatHighlight(h: Highlight): string {
-  // S26 — surface high WP-leverage as a 🎯 tag so coaches see "this clutch
-  // flipped a low-WP round". Threshold 0.7 ≈ pre-round WP ≤ 30% on a win.
-  const levBadge =
-    typeof h.leverage === 'number' && h.leverage >= 0.7 ? ' 🎯' : ''
-  if (h.kind === 'clutch') {
-    return `🧊 ${h.player} ${h.clutchType} clutch R${h.round}${levBadge}`
-  }
-  if (h.kind === 'ace') {
-    return `💥 ${h.player} ${h.count > 1 ? `${h.count}x ace` : 'ace'}${levBadge}`
-  }
-  if (h.kind === 'four_k') {
-    return `🔥 ${h.player} ${h.count > 1 ? `${h.count}x 4K` : '4K'}${levBadge}`
-  }
-  return `⚡ ${h.player} ${h.count > 1 ? `${h.count}x 3K` : '3K'}${levBadge}`
 }
 
 // ── Webhook posters ──────────────────────────────────────────────────────────
@@ -438,6 +580,28 @@ async function computeMatchReviewItems(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseLike = SupabaseClient | any
 
+async function recordDiscordFailure(
+  supabase: SupabaseLike,
+  matchUUID: string,
+  matchIdHelldock: string | null,
+  henrikId: string | null,
+  error: string,
+  payload?: Record<string, unknown>
+) {
+  try {
+    await supabase.from('ingest_failures').insert({
+      match_id: matchUUID,
+      match_id_helldock: matchIdHelldock,
+      henrik_id: henrikId,
+      source: 'discord',
+      error: error.slice(0, 1000),
+      payload,
+    })
+  } catch {
+    // ignore — best effort
+  }
+}
+
 /**
  * Fetch a freshly-inserted match's data, compute the tactical breakdown +
  * comparison signals, render the kill-heatmap PNG if kill_events exist, and
@@ -449,6 +613,9 @@ export async function notifyDiscordForMatch(
   matchUUID: string,
   baseUrl: string
 ): Promise<void> {
+  let matchIdHelldock: string | null = null
+  let henrikId: string | null = null
+
   try {
     const { data: team } = await supabase
       .from('teams')
@@ -460,11 +627,13 @@ export async function notifyDiscordForMatch(
     const { data: match } = await supabase
       .from('matches')
       .select(
-        'match_id_helldock, map_name, opponent_name, our_score, opp_score, result'
+        'match_id_helldock, henrik_id, map_name, opponent_name, our_score, opp_score, result'
       )
       .eq('id', matchUUID)
       .single()
     if (!match) return
+    matchIdHelldock = match.match_id_helldock
+    henrikId = match.henrik_id
 
     // Pull match_players (incl. player_id for delta lookups + display_name),
     // rounds (full tactical shape), and kill_events (for the heatmap) in
@@ -671,7 +840,7 @@ export async function notifyDiscordForMatch(
 
     const summary: DiscordMatchSummary = {
       matchIdHelldock: match.match_id_helldock,
-      matchUrl: `${baseUrl.replace(/\/+$/, '')}/matches/${match.match_id_helldock}`,
+      matchUrl: `${baseUrl.replace(/\/+$/, '')}/app/matches/${match.match_id_helldock}`,
       mapName: match.map_name,
       teamName: team.name,
       opponentName: match.opponent_name,
@@ -688,29 +857,33 @@ export async function notifyDiscordForMatch(
       heatmapPng,
     }
 
-    if (heatmapPng) {
-      await postMatchToDiscordMultipart(
-        team.discord_webhook_url,
-        summary,
-        heatmapPng
+    const postResult = heatmapPng
+      ? await postMatchToDiscordMultipart(
+          team.discord_webhook_url,
+          summary,
+          heatmapPng
+        )
+      : await postMatchToDiscord(team.discord_webhook_url, summary)
+
+    if (!postResult.ok) {
+      await recordDiscordFailure(
+        supabase,
+        matchUUID,
+        match.match_id_helldock,
+        match.henrik_id,
+        postResult.error ?? `Discord responded ${postResult.status ?? 'unknown'}`,
+        {
+          status: postResult.status ?? null,
+          withHeatmap: Boolean(heatmapPng),
+        }
       )
-    } else {
-      await postMatchToDiscord(team.discord_webhook_url, summary)
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     console.warn(`[discord] notify failed: ${msg}`)
     // Persist so the failure shows up on the Home page badge instead of
     // disappearing into the void.
-    try {
-      await supabase.from('ingest_failures').insert({
-        match_id: matchUUID,
-        source: 'discord',
-        error: msg.slice(0, 1000),
-      })
-    } catch {
-      // ignore — best effort
-    }
+    await recordDiscordFailure(supabase, matchUUID, matchIdHelldock, henrikId, msg)
   }
 }
 

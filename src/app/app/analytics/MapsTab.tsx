@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import type { MapStat } from '@/lib/analytics'
+import type { MapPoolEntry, MapStat } from '@/lib/analytics'
 import type { Map } from '@/lib/valorant'
 import { MAP_RADARS } from '@/lib/valorant-maps'
 import MapHeatmap, {
@@ -43,7 +43,13 @@ type FetchState =
   | { kind: 'error'; message: string }
   | { kind: 'ready'; events: KillEventRow[]; roster: RosterEntry[] }
 
-export default function MapsTab({ maps }: { maps: MapStat[] }) {
+export default function MapsTab({
+  maps,
+  mapPool,
+}: {
+  maps: MapStat[]
+  mapPool?: MapPoolEntry[]
+}) {
   const played = maps.filter((m) => m.total > 0)
   const unplayed = maps.filter((m) => m.total === 0)
 
@@ -106,6 +112,8 @@ export default function MapsTab({ maps }: { maps: MapStat[] }) {
 
   return (
     <div>
+      {mapPool && mapPool.length > 0 && <MapPoolSummary pool={mapPool} />}
+
       {/* Site execute heatmap (compact ATT post-plant conversion grid) */}
       <SiteExecuteHeatmap maps={played} />
 
@@ -142,7 +150,7 @@ export default function MapsTab({ maps }: { maps: MapStat[] }) {
           onClick={closeMap}
           role="dialog"
           aria-modal="true"
-          aria-label={`${activeMap} kill-event heatmap`}
+          aria-label={`${activeMap} map fight review`}
         >
           <div
             className="relative bg-surface border border-line-strong rounded-2xl max-w-2xl w-full max-h-full overflow-y-auto"
@@ -151,7 +159,7 @@ export default function MapsTab({ maps }: { maps: MapStat[] }) {
             <div className="flex items-start justify-between p-5 border-b border-line gap-4">
               <div>
                 <p className="text-2xs uppercase tracking-[0.16em] text-muted-2">
-                  kill-event heatmap
+                  map fight review
                 </p>
                 <h2 className="text-2xl font-bold text-gold leading-tight">
                   {activeMap}
@@ -174,11 +182,11 @@ export default function MapsTab({ maps }: { maps: MapStat[] }) {
                 onChange={setMode}
                 options={[
                   { value: 'first_blood', label: 'First contact' },
-                  { value: 'all', label: 'All kills' },
-                  { value: 'post_plant_hold', label: 'Post-plant holds' },
-                  { value: 'retake_spot', label: 'Retake spots' },
-                  { value: 'round_endpoint', label: 'Round endpoints' },
-                  { value: 'plant_cluster', label: 'Plant cluster' },
+                  { value: 'all', label: 'All fights' },
+                  { value: 'post_plant_hold', label: 'After plant' },
+                  { value: 'retake_spot', label: 'Retakes' },
+                  { value: 'round_endpoint', label: 'Round finish' },
+                  { value: 'plant_cluster', label: 'Plant fights' },
                 ]}
               />
               {/* post-plant / retake pin the side; round_endpoint respects it. */}
@@ -194,6 +202,9 @@ export default function MapsTab({ maps }: { maps: MapStat[] }) {
                 />
               )}
             </div>
+            <p className="px-5 pt-2 text-xs text-muted leading-relaxed">
+              Pick the question first. Green means the fight helped us; red means it hurt us.
+            </p>
 
             <div className="p-5">
               {fetchState.kind === 'loading' && (
@@ -220,6 +231,73 @@ export default function MapsTab({ maps }: { maps: MapStat[] }) {
         </div>
       )}
     </div>
+  )
+}
+
+function MapPoolSummary({ pool }: { pool: MapPoolEntry[] }) {
+  const pick = pool.filter((m) => m.recommendation === 'Pick').slice(0, 3)
+  const develop = pool.filter((m) => m.recommendation === 'Develop').slice(0, 3)
+  const ban = pool.filter((m) => m.recommendation === 'Ban').slice(0, 3)
+  const rows = [...pick, ...ban, ...develop].slice(0, 6)
+
+  return (
+    <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5 mb-5">
+      <div className="flex items-baseline justify-between gap-3 mb-4">
+        <div>
+          <p className="text-2xs uppercase tracking-[0.16em] text-muted-2">
+            Map pool calls
+          </p>
+          <h2 className="text-lg font-semibold text-fg">
+            Pick, ban, and development lanes
+          </h2>
+        </div>
+        <Link
+          href="/app/analytics?tab=complab"
+          className="text-2xs uppercase tracking-wider text-muted hover:text-gold"
+        >
+          comp lab
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {rows.map((m) => (
+          <Link
+            key={m.map}
+            href={`/app/analytics?tab=complab&map=${encodeURIComponent(m.map)}`}
+            className="rounded-lg bg-surface border border-line px-3 py-3 hover:border-gold/50 hover:bg-surface-3 transition-colors"
+          >
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-fg font-semibold">{m.map}</span>
+              <span
+                className={`text-2xs uppercase tracking-wider ${
+                  m.recommendation === 'Pick'
+                    ? 'text-win-green'
+                    : m.recommendation === 'Ban'
+                    ? 'text-crimson'
+                    : m.recommendation === 'Decider'
+                    ? 'text-blue-300'
+                    : 'text-muted'
+                }`}
+              >
+                {m.recommendation}
+              </span>
+            </div>
+            <div className="mt-2 text-xs text-muted tnum">
+              {m.played > 0 ? (
+                <>
+                  <span className="text-win-green">{m.wins}</span>
+                  <span className="text-muted-2">-</span>
+                  <span className="text-crimson">{m.losses}</span>
+                  <span className="ml-2 text-gold">{m.winPct ?? '-'}%</span>
+                </>
+              ) : (
+                'no reps logged'
+              )}
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
   )
 }
 

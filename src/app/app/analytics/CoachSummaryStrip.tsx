@@ -112,10 +112,10 @@ export default function CoachSummaryStrip({ summary }: { summary: CoachSummary }
           tone="muted"
         />
         <Row
-          label="🪨 Most depended on"
+          label="Death impact"
           value={
             summary.mostDepended
-              ? `${summary.mostDepended.name} · +${summary.mostDepended.dragPp}pp drag`
+              ? `${summary.mostDepended.name} | team drops ${summary.mostDepended.dragPp} pts`
               : 'balanced'
           }
           tone={summary.mostDepended ? 'crimson' : 'muted'}

@@ -45,9 +45,23 @@ import AnalyticsTabs from './AnalyticsTabs'
 
 export const dynamic = 'force-dynamic'
 
-type TabKey = 'maps' | 'players' | 'opps' | 'rounds' | 'complab' | 'pool' | 'gems'
+type TabKey = 'coach' | 'maps' | 'players' | 'opps' | 'rounds' | 'complab' | 'advanced'
 
-const VALID_TABS: ReadonlyArray<TabKey> = ['maps', 'players', 'opps', 'rounds', 'complab', 'pool', 'gems']
+const VALID_TABS: ReadonlyArray<TabKey> = [
+  'coach',
+  'maps',
+  'players',
+  'opps',
+  'rounds',
+  'complab',
+  'advanced',
+]
+
+function normalizeTab(tab?: string): TabKey {
+  if (tab === 'pool') return 'maps'
+  if (tab === 'gems') return 'advanced'
+  return (VALID_TABS as readonly string[]).includes(tab ?? '') ? (tab as TabKey) : 'coach'
+}
 
 export default async function AnalyticsPage({
   searchParams,
@@ -56,8 +70,7 @@ export default async function AnalyticsPage({
 }) {
   const { teamId, teamSlug } = await requireSelectedTeam()
   const supabase = createClient()
-  const requestedTab = (searchParams.tab ?? 'maps') as TabKey
-  const tab: TabKey = (VALID_TABS as readonly string[]).includes(requestedTab) ? requestedTab : 'maps'
+  const tab = normalizeTab(searchParams.tab)
   const hideAcademy = searchParams.hideAcademy === '1'
 
   const { data: matchesRaw } = await supabase
@@ -381,4 +394,3 @@ export default async function AnalyticsPage({
     </main>
   )
 }
-
