@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireTeamWriteScope } from '@/lib/route-guard'
 import { logMutation } from '@/lib/audit'
-import { notifyDiscordForMatch, baseUrlFromRequest } from '@/lib/discord'
 
 type OurPlayerInput = { player_id: string | null; agent: string | null }
 
@@ -129,9 +128,6 @@ export async function POST(req: Request) {
   if (oppError) {
     return NextResponse.json({ error: `opp_players insert failed: ${oppError.message}` }, { status: 500 })
   }
-
-  // Fire-and-forget Discord notification — never throws, never blocks the response.
-  await notifyDiscordForMatch(scope.supabase, scope.teamId, matchUUID, baseUrlFromRequest(req))
 
   logMutation({
     userId: scope.userId,

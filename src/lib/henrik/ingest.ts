@@ -2,7 +2,6 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { TEAM_CONFIGS } from '@/lib/teams'
 import { fetchMatchByIdV4, isPremierMatch } from '@/lib/henrik/client'
 import { transformMatchToRows } from '@/lib/henrik/transformers'
-import { notifyDiscordForMatch } from '@/lib/discord'
 
 export type IngestResult =
   | { status: 'ingested'; helldockId: string; matchUUID: string }
@@ -19,8 +18,6 @@ export type IngestOpts = {
   rawMatch?: any
   source: IngestSource
   supabase: SupabaseClient
-  /** Base URL used by Discord embed match links. */
-  baseUrl: string
 }
 
 function nextMatchIdHelldock(current: string | null): string {
@@ -29,8 +26,8 @@ function nextMatchIdHelldock(current: string | null): string {
 }
 
 /**
- * Validate → transform → insert (match + rounds + match_players + opp_players + kill_events)
- * → fire Discord webhook. Idempotent via the `matches.henrik_id` unique constraint:
+ * Validate → transform → insert (match + rounds + match_players + opp_players + kill_events).
+ * Idempotent via the `matches.henrik_id` unique constraint:
  * a second call with the same henrikId returns `{ status: 'duplicate' }` without
  * mutating anything.
  *
@@ -39,7 +36,7 @@ function nextMatchIdHelldock(current: string | null): string {
  * the loser surfaces the winner's row as `duplicate`.
  */
 export async function ingestMatch(opts: IngestOpts): Promise<IngestResult> {
-  const { henrikId, teamSlug, supabase, baseUrl } = opts
+  const { henrikId, teamSlug, supabase } = opts
 
   const teamConfig = TEAM_CONFIGS[teamSlug]
   if (!teamConfig) return { status: 'error', error: `Unknown team slug: ${teamSlug}` }
@@ -250,9 +247,6 @@ export async function ingestMatch(opts: IngestOpts): Promise<IngestResult> {
       })
     }
   }
-
-  // Discord (fire-and-forget; never throws). Records its own failures.
-  await notifyDiscordForMatch(supabase, teamId, matchUUID, baseUrl)
 
   return { status: 'ingested', helldockId: assignedHelldockId, matchUUID }
 }

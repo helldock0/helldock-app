@@ -43,7 +43,9 @@ import {
   type AnalyticsScopeMatch,
 } from '@/lib/analytics-scope'
 import { requireSelectedTeam } from '@/lib/team-session'
+import { getCurrentUserContext } from '@/lib/authz'
 import { TEAM_CONFIGS } from '@/lib/teams'
+import { resolveAnalyticsTeamScope } from '@/lib/analytics-team-scope'
 import { getMmrForRiotIds, type MmrLookup } from '@/lib/henrik/mmr'
 import AnalyticsTabs from './AnalyticsTabs'
 
@@ -58,21 +60,46 @@ type AnalyticsPageMatch = DashMatch & AnalyticsScopeMatch
 export default async function AnalyticsPage({
   searchParams,
 }: {
-  searchParams: { tab?: string; map?: string; hideAcademy?: string; lastGames?: string }
+  searchParams: { tab?: string; team?: string; map?: string; hideAcademy?: string; lastGames?: string }
 }) {
-  const { teamId, teamSlug } = await requireSelectedTeam()
+  const selectedTeam = await requireSelectedTeam()
   const supabase = createClient()
+  const ctx = await getCurrentUserContext()
+  const membershipTeams =
+    ctx?.memberships.flatMap((org) =>
+      org.teams.map((team) => ({
+        id: team.teamId,
+        slug: team.teamSlug,
+        name: team.teamName,
+      }))
+    ) ?? []
+  const readableTeams = membershipTeams.some((team) => team.id === selectedTeam.teamId)
+    ? membershipTeams
+    : [
+        ...membershipTeams,
+        { id: selectedTeam.teamId, slug: selectedTeam.teamSlug, name: selectedTeam.teamName },
+      ]
+  const analyticsTeam = resolveAnalyticsTeamScope({
+    readableTeams: readableTeams.filter((team) => TEAM_CONFIGS[team.slug]),
+    selectedTeamSlug: selectedTeam.teamSlug,
+    requestedTeam: searchParams.team,
+  })
+  const { teamIds, teamSlug } = analyticsTeam
   const requestedTab = (searchParams.tab ?? 'maps') as TabKey
   const tab: TabKey = (VALID_TABS as readonly string[]).includes(requestedTab) ? requestedTab : 'maps'
   const hideAcademy = searchParams.hideAcademy === '1'
 
-  const { data: matchesRaw } = await supabase
+  let matchesQuery = supabase
     .from('matches')
     .select(
       'id, match_id_helldock, match_date, session_num, created_at, imported_at, opponent_name, map_name, our_score, opp_score, result, our_agents'
     )
     .is('deleted_at', null)
-    .eq('team_id', teamId)
+  matchesQuery =
+    teamIds.length === 1
+      ? matchesQuery.eq('team_id', teamIds[0])
+      : matchesQuery.in('team_id', teamIds)
+  const { data: matchesRaw } = await matchesQuery
 
   const matchesAll = (matchesRaw ?? []) as AnalyticsPageMatch[]
   const allMatchIds = matchesAll.map((m) => m.id)
@@ -121,9 +148,11 @@ export default async function AnalyticsPage({
 
   // Internal-scrim detection: any match where 3+ opp players are on the OTHER academy team's roster.
   const otherRosterKeys = new Set(
-    Object.keys(TEAM_CONFIGS)
-      .filter((s) => s !== teamSlug)
-      .flatMap((s) => Object.keys(TEAM_CONFIGS[s].roster))
+    teamSlug === 'all'
+      ? []
+      : Object.keys(TEAM_CONFIGS)
+          .filter((s) => s !== teamSlug)
+          .flatMap((s) => Object.keys(TEAM_CONFIGS[s].roster))
   )
   const overlapByMatch: Record<string, number> = {}
   for (const op of oppPlayersAll) {
@@ -200,7 +229,7 @@ export default async function AnalyticsPage({
   }
 
   // Region for MMR refresh (from team config)
-  const teamConfig = TEAM_CONFIGS[teamSlug]
+  const teamConfig = teamSlug === 'all' ? null : TEAM_CONFIGS[teamSlug]
   const region = teamConfig?.mainAccount.region ?? 'ap'
 
   const filteredMatches = matches
@@ -367,6 +396,7 @@ export default async function AnalyticsPage({
       <AnalyticsTabs
         tab={tab}
         teamSlug={teamSlug}
+        teamOptions={analyticsTeam.options}
         maps={mapsAll}
         players={players}
         opps={opps}

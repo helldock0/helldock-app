@@ -1,5 +1,4 @@
 import { ingestMatch } from '@/lib/henrik/ingest'
-import { baseUrlFromRequest } from '@/lib/discord'
 import { requireTeamWriteScope } from '@/lib/route-guard'
 import { logMutation } from '@/lib/audit'
 import { NextResponse } from 'next/server'
@@ -22,10 +21,10 @@ export async function POST(req: Request) {
   // Sort oldest-first so helldock IDs are assigned chronologically (M001, M002, ...)
   const sorted = [...selectedMatches].sort((a, b) => a.date.localeCompare(b.date))
 
-  const baseUrl = baseUrlFromRequest(req)
   const results: {
     henrik_id: string
     match_id: string
+    match_uuid?: string
     status: 'saved' | 'duplicate' | 'error'
     error?: string
   }[] = []
@@ -37,11 +36,15 @@ export async function POST(req: Request) {
       rawMatch: preview.raw_match,
       source: 'manual_import',
       supabase: scope.supabase,
-      baseUrl,
     })
 
     if (result.status === 'ingested') {
-      results.push({ henrik_id: preview.henrik_id, match_id: result.helldockId, status: 'saved' })
+      results.push({
+        henrik_id: preview.henrik_id,
+        match_id: result.helldockId,
+        match_uuid: result.matchUUID,
+        status: 'saved',
+      })
       logMutation({
         userId: scope.userId,
         teamId: scope.teamId,
@@ -51,7 +54,12 @@ export async function POST(req: Request) {
         changes: { henrik_id: preview.henrik_id, source: 'manual_import' },
       })
     } else if (result.status === 'duplicate') {
-      results.push({ henrik_id: preview.henrik_id, match_id: result.helldockId, status: 'duplicate' })
+      results.push({
+        henrik_id: preview.henrik_id,
+        match_id: result.helldockId,
+        match_uuid: result.matchUUID,
+        status: 'duplicate',
+      })
     } else {
       results.push({ henrik_id: preview.henrik_id, match_id: '', status: 'error', error: result.error })
     }

@@ -1,12 +1,27 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { MatchPreview } from '@/app/api/import/fetch/route'
 
 type LoadState = 'idle' | 'fetching' | 'saving' | 'rehydrating'
 
 type RehydratableMatch = { id: string; match_id_helldock: string }
+type SaveResultRow = {
+  henrik_id: string
+  match_id: string
+  match_uuid?: string
+  status: 'saved' | 'duplicate' | 'error'
+  error?: string
+}
+type SaveResult = {
+  saved: number
+  duplicates: number
+  errors: unknown[]
+  results: SaveResultRow[]
+}
+type DiscordSendState = 'sending' | 'sent' | 'error'
 
 const hideInternalKey = (slug: string) => `helldock_import_hide_internal_${slug}`
 
@@ -92,7 +107,8 @@ export default function ImportClient({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [loadState, setLoadState] = useState<LoadState>('idle')
   const [fetchError, setFetchError] = useState<string | null>(null)
-  const [saveResult, setSaveResult] = useState<{ saved: number; duplicates: number; errors: unknown[] } | null>(null)
+  const [saveResult, setSaveResult] = useState<SaveResult | null>(null)
+  const [discordStatus, setDiscordStatus] = useState<Record<string, DiscordSendState>>({})
   const [fetchedAt, setFetchedAt] = useState<number | null>(null)
   const [rehydrateProgress, setRehydrateProgress] = useState<{
     done: number
@@ -175,6 +191,7 @@ export default function ImportClient({
     setPreviews([])
     setSelected(new Set())
     setSaveResult(null)
+    setDiscordStatus({})
 
     const res = await fetch('/api/import/fetch', {
       method: 'POST',
@@ -203,6 +220,7 @@ export default function ImportClient({
 
     setLoadState('saving')
     setSaveResult(null)
+    setDiscordStatus({})
 
     const res = await fetch('/api/import/save', {
       method: 'POST',
@@ -217,7 +235,12 @@ export default function ImportClient({
       return
     }
 
-    setSaveResult({ saved: data.saved, duplicates: data.duplicates ?? 0, errors: data.errors ?? [] })
+    setSaveResult({
+      saved: data.saved,
+      duplicates: data.duplicates ?? 0,
+      errors: data.errors ?? [],
+      results: data.results ?? [],
+    })
     setLoadState('idle')
 
     // Optimistically mark just-saved matches as already-in-db in the cached list,
@@ -230,7 +253,16 @@ export default function ImportClient({
       setPreviews(updated)
       saveCache(lockedTeamSlug, updated)
       setSelected(new Set())
-      setTimeout(() => router.push('/app/matches'), 1200)
+    }
+  }
+
+  async function handleSendDiscord(matchUuid: string) {
+    setDiscordStatus((s) => ({ ...s, [matchUuid]: 'sending' }))
+    try {
+      const res = await fetch(`/api/matches/${matchUuid}/discord`, { method: 'POST' })
+      setDiscordStatus((s) => ({ ...s, [matchUuid]: res.ok ? 'sent' : 'error' }))
+    } catch {
+      setDiscordStatus((s) => ({ ...s, [matchUuid]: 'error' }))
     }
   }
 
@@ -399,7 +431,7 @@ export default function ImportClient({
 
       {/* Success */}
       {saveResult && (
-        <div className="bg-surface-2 border border-win-green/40 rounded-xl p-4 mb-4 text-win-green text-sm">
+        <div className="bg-surface-2 border border-win-green/40 rounded-xl p-4 mb-4 text-sm">
           {saveResult.saved} match{saveResult.saved !== 1 ? 'es' : ''} imported.
           {saveResult.duplicates > 0 && (
             <span className="text-muted-2 ml-2">
@@ -409,7 +441,45 @@ export default function ImportClient({
           {saveResult.errors.length > 0 && (
             <span className="text-crimson ml-2">{saveResult.errors.length} error(s).</span>
           )}
-          {saveResult.saved > 0 && <span className="text-muted-2 ml-2">Redirecting…</span>}
+          {saveResult.results.filter((r) => r.match_uuid && r.match_id).length > 0 && (
+            <div className="mt-3 flex flex-col gap-2">
+              {saveResult.results
+                .filter((r) => r.match_uuid && r.match_id)
+                .map((r) => {
+                  const state = r.match_uuid ? discordStatus[r.match_uuid] : undefined
+                  return (
+                    <div
+                      key={`${r.henrik_id}-${r.match_id}`}
+                      className="flex flex-wrap items-center gap-2 rounded-lg border border-line-strong/50 bg-surface px-3 py-2"
+                    >
+                      <Link
+                        href={`/app/matches/${r.match_id}`}
+                        className="font-mono text-xs text-fg hover:text-gold transition-colors"
+                      >
+                        {r.match_id}
+                      </Link>
+                      <span className="text-2xs uppercase tracking-wider text-muted-2">
+                        {r.status}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => r.match_uuid && handleSendDiscord(r.match_uuid)}
+                        disabled={!r.match_uuid || state === 'sending' || state === 'sent'}
+                        className="ml-auto text-2xs uppercase tracking-[0.12em] px-2.5 py-1 rounded-md border border-line-strong text-muted hover:border-gold hover:text-gold disabled:opacity-50 transition-colors"
+                      >
+                        {state === 'sending'
+                          ? 'Sending...'
+                          : state === 'sent'
+                          ? 'Sent'
+                          : state === 'error'
+                          ? 'Retry Discord'
+                          : 'Send Discord'}
+                      </button>
+                    </div>
+                  )
+                })}
+            </div>
+          )}
         </div>
       )}
 

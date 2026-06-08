@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { authenticateToken } from '@/lib/captures/token'
 import { ingestMatch } from '@/lib/henrik/ingest'
-import { baseUrlFromRequest } from '@/lib/discord'
 import { optionsResponse, withCors } from '@/lib/captures/cors'
 
 export const dynamic = 'force-dynamic'
@@ -39,7 +38,6 @@ export async function POST(req: Request) {
     teamSlug: auth.teamSlug,
     source: 'capture_agent',
     supabase,
-    baseUrl: baseUrlFromRequest(req),
   })
 
   if (result.status === 'error') {

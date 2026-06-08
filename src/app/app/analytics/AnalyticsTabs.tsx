@@ -13,6 +13,7 @@ import type {
 } from '@/lib/analytics'
 import type { MmrLookup } from '@/lib/henrik/mmr'
 import type { SynergyMatrix } from '@/lib/comp-synergy'
+import type { AnalyticsTeamOption } from '@/lib/analytics-team-scope'
 import CoachSummaryStrip from './CoachSummaryStrip'
 import MapsTab from './MapsTab'
 import PlayersTab from './PlayersTab'
@@ -39,6 +40,7 @@ const LAST_GAME_PRESETS = [5, 10, 20]
 export default function AnalyticsTabs({
   tab,
   teamSlug,
+  teamOptions,
   maps,
   players,
   opps,
@@ -64,6 +66,7 @@ export default function AnalyticsTabs({
 }: {
   tab: TabKey
   teamSlug: string
+  teamOptions: AnalyticsTeamOption[]
   maps: MapStat[]
   players: PlayerStat[]
   opps: OppStat[]
@@ -88,7 +91,7 @@ export default function AnalyticsTabs({
   currentMapParam: string | null
 }) {
   function addSharedParams(params: URLSearchParams, includeLastGames = true) {
-    if (teamSlug && teamSlug !== 'all') params.set('team', teamSlug)
+    if (teamSlug) params.set('team', teamSlug)
     if (hideAcademy) params.set('hideAcademy', '1')
     if (currentMapParam) params.set('map', currentMapParam)
     if (includeLastGames && lastGames != null) params.set('lastGames', String(lastGames))
@@ -119,6 +122,16 @@ export default function AnalyticsTabs({
     return `/app/analytics?${params.toString()}`
   }
 
+  function teamHref(nextTeamSlug: string): string {
+    const params = new URLSearchParams()
+    params.set('tab', tab)
+    params.set('team', nextTeamSlug)
+    if (hideAcademy) params.set('hideAcademy', '1')
+    if (currentMapParam) params.set('map', currentMapParam)
+    if (lastGames != null) params.set('lastGames', String(lastGames))
+    return `/app/analytics?${params.toString()}`
+  }
+
   const scopePillClass = (active: boolean) =>
     `text-2xs uppercase tracking-[0.12em] px-2.5 py-1 rounded-md border transition-colors whitespace-nowrap ${
       active
@@ -130,6 +143,26 @@ export default function AnalyticsTabs({
     <>
       {/* Coach Summary strip */}
       <CoachSummaryStrip summary={coachSummary} />
+
+      {teamOptions.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2 bg-surface-2 border border-line-strong/40 rounded-2xl px-4 py-3 mb-4">
+          <span className="text-2xs uppercase tracking-[0.16em] text-muted-2 mr-1">
+            Team
+          </span>
+          <Link href={teamHref('all')} className={scopePillClass(teamSlug === 'all')}>
+            All
+          </Link>
+          {teamOptions.map((team) => (
+            <Link
+              key={team.id}
+              href={teamHref(team.slug)}
+              className={scopePillClass(teamSlug === team.slug)}
+            >
+              {team.slug}
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* Tab bar */}
       <div
@@ -192,7 +225,7 @@ export default function AnalyticsTabs({
         ))}
         <form action="/app/analytics" className="flex items-center gap-2 ml-0 md:ml-2">
           <input type="hidden" name="tab" value={tab} />
-          {teamSlug && teamSlug !== 'all' && <input type="hidden" name="team" value={teamSlug} />}
+          {teamSlug && <input type="hidden" name="team" value={teamSlug} />}
           {hideAcademy && <input type="hidden" name="hideAcademy" value="1" />}
           {currentMapParam && <input type="hidden" name="map" value={currentMapParam} />}
           <span className="text-2xs uppercase tracking-[0.12em] text-muted-2">Last</span>

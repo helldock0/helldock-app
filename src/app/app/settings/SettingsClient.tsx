@@ -200,9 +200,8 @@ export default function SettingsClient({
       <section className="bg-surface-2 border border-line-strong/40 rounded-2xl p-5 mb-5">
         <h2 className="text-lg font-semibold text-fg mb-1">Discord webhook</h2>
         <p className="text-sm text-muted-2 mb-4">
-          Paste a Discord channel webhook URL here. Every imported or manually
-          created match will post a summary embed to that channel. Failures are
-          silent — the match still saves.
+          Paste a Discord channel webhook URL here. Use the match page or import
+          result button to post a summary embed manually.
         </p>
 
         <label

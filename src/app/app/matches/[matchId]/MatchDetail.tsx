@@ -150,6 +150,44 @@ function RehydrateButton({
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+function DiscordSummaryButton({ matchUuid }: { matchUuid: string }) {
+  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+
+  async function handleClick() {
+    if (state === 'sending') return
+    setState('sending')
+    try {
+      const res = await fetch(`/api/matches/${matchUuid}/discord`, { method: 'POST' })
+      setState(res.ok ? 'sent' : 'error')
+    } catch {
+      setState('error')
+    }
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={state === 'sending' || state === 'sent'}
+      title="Post this match summary to the saved Discord webhook"
+      className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+        state === 'sent'
+          ? 'bg-win-green/20 text-win-green'
+          : state === 'error'
+          ? 'bg-crimson text-fg'
+          : 'bg-line-strong text-muted-2 hover:text-gold disabled:opacity-50'
+      }`}
+    >
+      {state === 'sending'
+        ? 'sending...'
+        : state === 'sent'
+        ? 'sent'
+        : state === 'error'
+        ? 'retry Discord'
+        : 'send Discord'}
+    </button>
+  )
+}
+
 function fmt(val: string | number | boolean | null | undefined): string {
   if (val === null || val === undefined || val === '') return '—'
   if (typeof val === 'boolean') return val ? 'Yes' : 'No'
@@ -1189,6 +1227,7 @@ export default function MatchDetail({
             >
               report
             </Link>
+            <DiscordSummaryButton matchUuid={localMatch.id} />
             {!localMatch.is_manual_entry && (
               <RehydrateButton
                 matchUuid={localMatch.id}

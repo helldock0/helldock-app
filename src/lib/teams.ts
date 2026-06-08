@@ -9,7 +9,7 @@ export const TEAM_CONFIGS: Record<string, TeamConfig> = {
   scylla: {
     slug: 'scylla',
     name: 'SOP Scylla',
-    mainAccount: { name: 'MAK', tag: '1103', region: 'ap' },
+    mainAccount: { name: 'Igawr', tag: 'xuu许', region: 'ap' },
     roster: {
       'Igawr#xuu许': 'Igawr',
       'MAK#1103': 'MAK',
