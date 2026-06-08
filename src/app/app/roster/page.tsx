@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
+import { getCurrentUserContext } from '@/lib/authz'
+import { getRosterTransferTargets, type RosterTransferTeam } from '@/lib/roster-transfer'
 import { requireSelectedTeam } from '@/lib/team-session'
 import RosterClient from './RosterClient'
 
@@ -28,6 +30,7 @@ export type PlayerRow = {
 
 export default async function RosterPage() {
   const { teamId, teamName, teamSlug } = await requireSelectedTeam()
+  const ctx = await getCurrentUserContext()
   const supabase = createClient()
 
   const { data: players } = await supabase
@@ -65,5 +68,34 @@ export default async function RosterPage() {
     match_count: matchCounts.get(p.id) ?? 0,
   }))
 
-  return <RosterClient teamId={teamId} teamName={teamName} teamSlug={teamSlug} players={rows} />
+  let platformTeams: RosterTransferTeam[] = []
+  if (ctx?.isPlatformAdmin) {
+    const { data: currentTeam } = await supabase
+      .from('teams')
+      .select('org_id')
+      .eq('id', teamId)
+      .maybeSingle()
+
+    if (currentTeam?.org_id) {
+      const { data: orgTeams } = await supabase
+        .from('teams')
+        .select('id, slug, name')
+        .eq('org_id', currentTeam.org_id)
+        .order('name', { ascending: true })
+
+      platformTeams = (orgTeams ?? []) as RosterTransferTeam[]
+    }
+  }
+
+  const transferTeams = ctx ? getRosterTransferTargets(ctx, teamId, platformTeams) : []
+
+  return (
+    <RosterClient
+      teamId={teamId}
+      teamName={teamName}
+      teamSlug={teamSlug}
+      players={rows}
+      transferTeams={transferTeams}
+    />
+  )
 }

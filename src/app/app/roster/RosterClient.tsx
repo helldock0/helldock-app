@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import type { RosterTransferTeam } from '@/lib/roster-transfer'
 import type { PlayerAccountRow, PlayerRow } from './page'
 
 type RosterStatus = 'main' | 'sub' | 'trial'
@@ -23,11 +24,13 @@ export default function RosterClient({
   teamName,
   teamSlug,
   players,
+  transferTeams,
 }: {
   teamId: string
   teamName: string
   teamSlug: string
   players: PlayerRow[]
+  transferTeams: RosterTransferTeam[]
 }) {
   const router = useRouter()
   const [editing, setEditing] = useState<PlayerRow | null>(null)
@@ -159,6 +162,7 @@ export default function RosterClient({
           player={editing}
           onClose={() => setEditing(null)}
           onError={setError}
+          transferTeams={transferTeams}
           onSaved={() => {
             setEditing(null)
             refresh()
@@ -202,11 +206,13 @@ function EditPlayerModal({
   onClose,
   onSaved,
   onError,
+  transferTeams,
 }: {
   player: PlayerRow
   onClose: () => void
   onSaved: () => void
   onError: (msg: string | null) => void
+  transferTeams: RosterTransferTeam[]
 }) {
   const [displayName, setDisplayName] = useState(player.display_name)
   const [mainRole, setMainRole] = useState(player.main_role ?? '')
@@ -306,6 +312,27 @@ function EditPlayerModal({
       return
     }
     setAccounts((prev) => prev.filter((a) => a.id !== accountId))
+  }
+
+  async function transferTo(team: RosterTransferTeam) {
+    if (!confirm(`Move ${player.display_name} to ${team.name}? Match history stays linked.`)) return
+    setSaving(true)
+    onError(null)
+    try {
+      const res = await fetch(`/api/roster/players/${player.id}/transfer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_team_id: team.id }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        onError(body?.error ?? `HTTP ${res.status}`)
+        return
+      }
+      onSaved()
+    } finally {
+      setSaving(false)
+    }
   }
 
   const alts = accounts.filter((a) => !a.is_primary)
@@ -446,6 +473,27 @@ function EditPlayerModal({
           </button>
         </div>
       </div>
+
+      {transferTeams.length > 0 && (
+        <div className="mt-5 pt-4 border-t border-line-strong/40">
+          <h3 className="text-2xs uppercase tracking-wider text-muted-2 mb-2">
+            Move team
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {transferTeams.map((team) => (
+              <button
+                key={team.id}
+                type="button"
+                onClick={() => transferTo(team)}
+                disabled={saving}
+                className="px-3 py-1.5 rounded-md border border-cyan-400/40 bg-cyan-400/10 text-cyan-400 text-sm font-semibold hover:bg-cyan-400/20 disabled:opacity-50"
+              >
+                Move to {team.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-5 pt-4 border-t border-line-strong/40 flex items-center justify-between gap-2">
         <button
