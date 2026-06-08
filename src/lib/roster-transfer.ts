@@ -6,6 +6,26 @@ export type RosterTransferTeam = {
   name: string
 }
 
+export type RosterTransferPlayer = {
+  id: string
+  team_id: string | null
+  riot_name: string | null
+  riot_tag: string | null
+}
+
+export type RosterTransferPlan =
+  | {
+      kind: 'move'
+      sourcePlayerId: string
+      targetTeamId: string
+    }
+  | {
+      kind: 'merge'
+      sourcePlayerId: string
+      duplicatePlayerId: string
+      targetTeamId: string
+    }
+
 export function getRosterTransferTargets(
   ctx: UserContext,
   currentTeamId: string,
@@ -34,6 +54,31 @@ export function getRosterTransferTargets(
   }
 
   return targets.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export function planRosterTransfer({
+  sourcePlayer,
+  targetTeamId,
+  duplicateTargetPlayer,
+}: {
+  sourcePlayer: RosterTransferPlayer
+  targetTeamId: string
+  duplicateTargetPlayer: RosterTransferPlayer | null
+}): RosterTransferPlan {
+  if (duplicateTargetPlayer && duplicateTargetPlayer.id !== sourcePlayer.id) {
+    return {
+      kind: 'merge',
+      sourcePlayerId: sourcePlayer.id,
+      duplicatePlayerId: duplicateTargetPlayer.id,
+      targetTeamId,
+    }
+  }
+
+  return {
+    kind: 'move',
+    sourcePlayerId: sourcePlayer.id,
+    targetTeamId,
+  }
 }
 
 export function canWriteTeamFromContext(ctx: UserContext, teamId: string): boolean {

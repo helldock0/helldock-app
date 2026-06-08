@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { getRosterTransferTargets } from '../src/lib/roster-transfer'
+import { getRosterTransferTargets, planRosterTransfer } from '../src/lib/roster-transfer'
 import type { UserContext } from '../src/lib/authz'
 
 const baseCtx: UserContext = {
@@ -96,4 +96,48 @@ test('platform admins can transfer to any known team except the current team', (
   assert.deepEqual(targets, [
     { id: 'hydra-id', slug: 'hydra', name: 'SOP Hydra (Academy)' },
   ])
+})
+
+test('plans a merge when target team already has the same Riot ID', () => {
+  const plan = planRosterTransfer({
+    sourcePlayer: {
+      id: 'hydra-ark',
+      team_id: 'hydra-id',
+      riot_name: 'Ark',
+      riot_tag: 'VCSA',
+    },
+    targetTeamId: 'scylla-id',
+    duplicateTargetPlayer: {
+      id: 'scylla-ark',
+      team_id: 'scylla-id',
+      riot_name: 'Ark',
+      riot_tag: 'VCSA',
+    },
+  })
+
+  assert.deepEqual(plan, {
+    kind: 'merge',
+    sourcePlayerId: 'hydra-ark',
+    duplicatePlayerId: 'scylla-ark',
+    targetTeamId: 'scylla-id',
+  })
+})
+
+test('plans a direct move when target team has no duplicate Riot ID', () => {
+  const plan = planRosterTransfer({
+    sourcePlayer: {
+      id: 'hydra-trippie',
+      team_id: 'hydra-id',
+      riot_name: 'Trippie',
+      riot_tag: '0114',
+    },
+    targetTeamId: 'scylla-id',
+    duplicateTargetPlayer: null,
+  })
+
+  assert.deepEqual(plan, {
+    kind: 'move',
+    sourcePlayerId: 'hydra-trippie',
+    targetTeamId: 'scylla-id',
+  })
 })

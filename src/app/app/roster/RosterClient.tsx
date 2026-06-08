@@ -147,7 +147,7 @@ export default function RosterClient({
                   >
                     <div className="text-fg font-semibold">{p.display_name}</div>
                     <div className="text-xs text-muted-2 font-mono">
-                      {p.riot_name}#{p.riot_tag}
+                      {p.riot_name && p.riot_tag ? `${p.riot_name}#${p.riot_tag}` : '(no riot id)'}
                     </div>
                   </button>
                 </li>
